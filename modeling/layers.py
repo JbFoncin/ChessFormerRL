@@ -79,7 +79,7 @@ class ActionDecoderLayer(nn.Module):
             enc_output (torch.tensor): tensor of size (number of pieces * embedding_dim)
             decoder_hidden_state (torch.tensor): tensor of size (number of possible moves * embedding dim)
         Returns:
-            torch.tensor: tensor of size ?
+            torch.tensor: tensor of size (q_seq_len, embedding_dim)
         """        
         decoder_hidden_state = self.layernorm_1(decoder_hidden_state)
         
