@@ -53,7 +53,6 @@ class ChessFormer(nn.Module):
         Args:
             pieces_ids (torch.tensor[torch.Long]): id of each piece
             colors_ids (torch.tensor[torch.Long]): color of each piece (0 or 1)
-            indexes (torch.tensor[torch.Long]): index of each piece on the board
             start_move_indexes (torch.tensor[torch.Long]): start move for each possible action
             end_move_indexes (torch.tensor[torch.Long]): destination for each possible action
 
