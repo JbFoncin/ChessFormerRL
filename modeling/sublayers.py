@@ -26,7 +26,7 @@ class ChessFormerEncoderEmbedding(nn.Module):
         """
         Args:
             pieces_ids (torch.tensor): id of each piece
-            color_ids (torch.tensor): color of each piece (0 or 1)
+            color_ids (torch.tensor): color of each piece (0 for empty box, 1 for player piece, 2 for competitor piece)
         """
         return self.position_emb(self.indexes) + self.piece_emb(pieces_ids) + self.color_emb(color_ids)
     

@@ -38,23 +38,28 @@ def get_index(coord):
     """
     return COORD_MAP[coord[0]] * 8 + int(coord[1]) - 1
 
-def get_all_encoded_pieces_and_colors(board):
+def get_all_encoded_pieces_and_colors(board, color_map):
     """
     encodes the whole game state in a list of tuples
 
     Args:
         board (chess.Board): object managing state and possible actions
+        color_map (dict): mapping from colors to model embeddings
 
     Returns:
         list[tuple[int, str or None]]: each tuple is the id of a piece and its color
     """
     board_pieces_flattened = str(board).replace('\n', ' ').split(' ')
-    result = []
+    pieces, colors = [], []
     for box in board_pieces_flattened:
         if box == '.':
-            result.append((PIECES_MAP[box], None))
+            pieces.append(PIECES_MAP[box])
+            colors.append(color_map[None])
         elif box.islower():
-            result.append((PIECES_MAP[box], 'b'))
+            pieces.append(PIECES_MAP[box])
+            colors.append(color_map['b'])
         else:
-            result.append((PIECES_MAP[box.lower()], 'w'))
-    return result
+            pieces.append(PIECES_MAP[box.lower()])
+            colors.append(color_map['w'])
+
+    return pieces, colors
