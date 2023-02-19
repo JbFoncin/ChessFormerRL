@@ -1,5 +1,6 @@
 from math import sqrt
 
+import torch as t
 from torch import nn
 
 
@@ -17,17 +18,18 @@ class ChessFormerEncoderEmbedding(nn.Module):
         super().__init__()
         
         self.position_emb = nn.Embedding(64, embedding_dim=embedding_dim)
-        self.piece_emb = nn.Embedding(6, embedding_dim=embedding_dim)
-        self.color_emb = nn.Embedding(2, embedding_dim=embedding_dim)
+        self.piece_emb = nn.Embedding(7, embedding_dim=embedding_dim)
+        self.color_emb = nn.Embedding(3, embedding_dim=embedding_dim)
+        self.register_buffer('indexes', t.arange(0, 64))
         
-    def forward(self, pieces_ids, color_ids, indexes):
+    def forward(self, pieces_ids, color_ids):
         """
         Args:
             pieces_ids (torch.tensor): id of each piece
             color_ids (torch.tensor): color of each piece (0 or 1)
             indexes (torch.tensor): piece location on the board (0 to 63)
         """
-        return self.position_emb(indexes) + self.piece_emb(pieces_ids) + self.color_emb(color_ids)
+        return self.position_emb(self.indexes) + self.piece_emb(pieces_ids) + self.color_emb(color_ids)
     
     
 class ChessFormerDecoderEmbedding(nn.Module):

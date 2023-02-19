@@ -5,11 +5,12 @@ This module contains tools used to convert states and actions from board to mode
 
 COORD_MAP = {key: value for key, value in zip('abcdefgh', [0, 1, 2, 3, 4, 5, 6, 7])}
 REVERSED_COORD_MAP = {value: key for key, value in COORD_MAP.items()}
-PIECES_MAP = {value: i for i, value in enumerate(['b', 'k', 'n', 'p', 'q', 'r'])}
+PIECES_MAP = {value: i for i, value in enumerate(['b', 'k', 'n', 'p', 'q', 'r', '.'])}
 
 
 def get_piece_and_index(coord, board):
-    """Returns piece type for a given index.
+    """
+    Returns piece type for a given index.
     used to get the piece involved in a possible action.
     This feature may not be useful, see after experiments
 
@@ -26,7 +27,8 @@ def get_piece_and_index(coord, board):
     return PIECES_MAP[piece.lower()], piece.islower(), index
 
 def get_index(coord):
-    """converts coordinates (str) to int between 0 and 63
+    """
+    converts coordinates (str) to int between 0 and 63
 
     Args:
         coord (str): the piece coordinates from a1 to h8
@@ -36,18 +38,23 @@ def get_index(coord):
     """
     return COORD_MAP[coord[0]] * 8 + int(coord[1]) - 1
 
-def get_all_encoded_pieces_index_and_color(board):
-    """encodes the whole game state in a list of tuples
+def get_all_encoded_pieces_and_colors(board):
+    """
+    encodes the whole game state in a list of tuples
 
     Args:
         board (chess.Board): object managing state and possible actions
 
     Returns:
-        list[tuple[int, int, int]]: each tuple is the id of a piece, its color and spatial index
+        list[tuple[int, str or None]]: each tuple is the id of a piece and its color
     """
     board_pieces_flattened = str(board).replace('\n', ' ').split(' ')
     result = []
-    for i, square in enumerate(board_pieces_flattened):
-        if square != '.':
-            result.append((REVERSED_COORD_MAP[square], square.islower(), i))
+    for box in board_pieces_flattened:
+        if box == '.':
+            result.append((PIECES_MAP[box], None))
+        elif box.islower():
+            result.append((PIECES_MAP[box], 'b'))
+        else:
+            result.append((PIECES_MAP[box.lower()], 'w'))
     return result

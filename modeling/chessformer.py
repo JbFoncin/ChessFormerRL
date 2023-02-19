@@ -48,7 +48,7 @@ class ChessFormer(nn.Module):
                 
         self.action_scorer = nn.Linear(embedding_dim, 1)
         
-    def forward(self, pieces_ids, colors_ids, indexes, start_move_indexes, end_move_indexes):
+    def forward(self, pieces_ids, colors_ids, start_move_indexes, end_move_indexes):
         """
         Args:
             pieces_ids (torch.tensor[torch.Long]): id of each piece
@@ -61,7 +61,7 @@ class ChessFormer(nn.Module):
             torch.tensor: a tensor of size (possible_actions)
         """
         
-        hidden_state_encoder = self.encoder_embeddings(pieces_ids, colors_ids, indexes)
+        hidden_state_encoder = self.encoder_embeddings(pieces_ids, colors_ids)
         
         for encoder_layer in self.encoder:
             hidden_state_encoder = encoder_layer(hidden_state_encoder)
