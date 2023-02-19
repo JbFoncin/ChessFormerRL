@@ -32,10 +32,10 @@ class BoardEncoderLayer(nn.Module):
     def forward(self, hidden_state):
         """
         Args:
-            hidden_state (t.tensor): tensor of size (seq_len, embedding_dim)
+            hidden_state (torch.tensor): tensor of size (seq_len, embedding_dim)
 
         Returns:
-            t.tensor: tensor of size (seq_len, embedding_dim)
+            torch.tensor: tensor of size (seq_len, embedding_dim)
         """        
         hidden_state = self.layernorm_1(hidden_state)
         

@@ -23,9 +23,9 @@ class ChessFormerEncoderEmbedding(nn.Module):
     def forward(self, pieces_ids, color_ids, indexes):
         """
         Args:
-            pieces_ids (t.tensor): id of each piece
-            color_ids (t.tensor): color of each piece (0 or 1)
-            indexes (t.tensor): piece location on the board (0 to 63)
+            pieces_ids (torch.tensor): id of each piece
+            color_ids (torch.tensor): color of each piece (0 or 1)
+            indexes (torch.tensor): piece location on the board (0 to 63)
         """
         return self.position_emb(indexes) + self.piece_emb(pieces_ids) + self.color_emb(color_ids)
     
@@ -47,11 +47,11 @@ class ChessFormerDecoderEmbedding(nn.Module):
     def forward(self, initial_position_indexes, destination_indexes):
         """
         Args:
-            initial_position_indexes (t.tensor): tensor of starting point of all allowed movements
-            destination_indexes (_type_): destination for all allowed moves
+            initial_position_indexes (torch.tensor): tensor of starting position index of all allowed movements
+            destination_indexes (torch.tensor): destination index for all allowed moves
 
         Returns:
-            t.tensor: tensor of dim (number of allowed moves * embedding_dim)
+            torch.tensor: tensor of dim (number of allowed moves * embedding_dim)
         """      
         return self.initial_position_embedding(initial_position_indexes) + \
                self.destination_embedding(destination_indexes)
@@ -65,8 +65,8 @@ class ResidualMultiHeadAttention(nn.Module):
         """
         Args:
             nb_head (int): number of attention heads
-            dim_per_head (_type_): hidden size of each head
-            embedding_dim (_type_): hidden size of the model
+            dim_per_head (int): hidden size of each head
+            embedding_dim (int): hidden size of the model
         """
         super().__init__()
         
@@ -82,12 +82,12 @@ class ResidualMultiHeadAttention(nn.Module):
     def forward(self, hidden_state_query, hidden_state_key, hidden_state_value):
         """
         Args:
-            hidden_state_query (t.tensor): the hidden state to be projected as query
-            hidden_state_key (t.tensor): the hidden state to be projected as key
-            hidden_state_value (t.tensor): the hidden state to be projected as value
+            hidden_state_query (torch.tensor): the hidden state to be projected as query
+            hidden_state_key (torch.tensor): the hidden state to be projected as key
+            hidden_state_value (torch.tensor): the hidden state to be projected as value
 
         Returns:
-            t.tensor: hidden state for the next layer
+            torch.tensor: hidden state for the next layer
         """
         query = self.query_projector(hidden_state_query) 
         key = self.key_projector(hidden_state_key)
@@ -127,10 +127,10 @@ class BottleNeck(nn.Module):
     def forward(self, input_):
         """
         Args:
-            input_ (t.tensor): hidden state of the model, size (seq_len, emb_dim)
+            input_ (torch.tensor): hidden state of the model, size (seq_len, emb_dim)
 
         Returns:
-            t.tensor: input processed
+            torch.tensor: input processed
         """
         out = self.w_2(self.activation(self.w_1(input_)))
         
