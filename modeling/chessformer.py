@@ -1,7 +1,8 @@
 from torch import nn
 
 from .layers import ActionDecoderLayer, BoardEncoderLayer
-from .sublayers import ChessFormerEncoderEmbedding, ChessFormerDecoderEmbedding
+from .sublayers import ChessFormerDecoderEmbedding, ChessFormerEncoderEmbedding
+
 
 class ChessFormer(nn.Module):
     """
