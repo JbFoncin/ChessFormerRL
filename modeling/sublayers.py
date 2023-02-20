@@ -20,13 +20,15 @@ class ChessFormerEncoderEmbedding(nn.Module):
         self.position_emb = nn.Embedding(64, embedding_dim=embedding_dim)
         self.piece_emb = nn.Embedding(7, embedding_dim=embedding_dim)
         self.color_emb = nn.Embedding(3, embedding_dim=embedding_dim)
-        self.register_buffer('indexes', t.arange(0, 64))
+        self.register_buffer('indexes', t.arange(64, dtype=t.long))
         
     def forward(self, pieces_ids, color_ids):
         """
         Args:
             pieces_ids (torch.tensor): id of each piece
             color_ids (torch.tensor): color of each piece (0 for empty box, 1 for player piece, 2 for competitor piece)
+        Returns:
+            torch.tensor: tensor of dim (64 * embedding_dim)
         """
         return self.position_emb(self.indexes) + self.piece_emb(pieces_ids) + self.color_emb(color_ids)
     
