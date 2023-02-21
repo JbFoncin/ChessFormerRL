@@ -112,7 +112,6 @@ class ResidualMultiHeadAttention(nn.Module):
         if attention_mask is not None:
             attention_mask_unsqueezed = attention_mask.unsqueeze(1)
             mask_all_heads = t.repeat_interleave(attention_mask_unsqueezed, self.nb_head, dim=1)
-            import pdb; pdb.set_trace()
             attn *= mask_all_heads
             
         attn_product = attn @ value
