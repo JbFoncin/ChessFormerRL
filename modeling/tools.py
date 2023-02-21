@@ -1,6 +1,8 @@
 import torch as t
 from torch.nn.utils.rnn import pad_sequence
 
+from chesstools.tools import get_all_encoded_pieces_and_colors, get_index
+
 PADDING_LM_ID = 64
 
 def prepare_input_for_batch(inference_data_list):
@@ -42,6 +44,33 @@ def prepare_input_for_batch(inference_data_list):
     }
     
     return batch_data
+
+def prepare_for_model_inference(board, color_map):
+    """
+    Args:
+        board (chess.Board): object managing state and possible actions
+        color_map (dict): pieces color mapping for the current player
+    """
+    pieces, colors = get_all_encoded_pieces_and_colors(board, color_map)
+    
+    pieces = t.tensor(pieces).unsqueeze(0)
+    colors = t.tensor(colors).unsqueeze(0)
+    possible_actions = [str(move) for move in board.legal_moves]
+        
+    starting_moves_indexes = [get_index(move[:2]) for move in possible_actions]
+    starting_moves_indexes = t.tensor(starting_moves_indexes).unsqueeze(0)
+    
+    moves_destinations = [get_index(move[2:]) for move in possible_actions]
+    moves_destinations = t.tensor(moves_destinations).unsqueeze(0)
+    
+    inference_data = {
+        'pieces_ids': pieces,
+        'colors_ids': colors,
+        'start_move_indexes': starting_moves_indexes,
+        'end_move_indexes': moves_destinations
+    }
+
+    return inference_data
     
 def make_attention_mask(padded_sequence):
     """makes attention mask for padded sequences

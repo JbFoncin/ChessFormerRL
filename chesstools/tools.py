@@ -65,30 +65,3 @@ def get_all_encoded_pieces_and_colors(board, color_map):
             colors.append(color_map['w'])
 
     return pieces, colors
-
-def prepare_for_model_inference(board, color_map):
-    """
-    Args:
-        board (chess.Board): object managing state and possible actions
-        color_map (dict): pieces color mapping for the current player
-    """
-    pieces, colors = get_all_encoded_pieces_and_colors(board, color_map)
-    
-    pieces = t.tensor(pieces).unsqueeze(0)
-    colors = t.tensor(colors).unsqueeze(0)
-    possible_actions = [str(move) for move in board.legal_moves]
-        
-    starting_moves_indexes = [get_index(move[:2]) for move in possible_actions]
-    starting_moves_indexes = t.tensor(starting_moves_indexes).unsqueeze(0)
-    
-    moves_destinations = [get_index(move[2:]) for move in possible_actions]
-    moves_destinations = t.tensor(moves_destinations).unsqueeze(0)
-    
-    inference_data = {
-        'pieces': pieces,
-        'colors': colors,
-        'starting_moves_indexes': starting_moves_indexes,
-        'destinations_indexes': moves_destinations
-    }
-    
-    return inference_data
