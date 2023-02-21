@@ -8,13 +8,8 @@ class ChessFormer(nn.Module):
     """
     The transformer model
     """
-    def __init__(self,
-                 nb_encoder_layers,
-                 nb_decoder_layers,
-                 embedding_dim,
-                 bottleneck_hidden_dim,
-                 dim_per_head,
-                 nb_head):
+    def __init__(self, nb_encoder_layers, nb_decoder_layers, embedding_dim,
+                 bottleneck_hidden_dim, dim_per_head, nb_head):
         """
         Args:
             nb_encoder_layers (int): number of encoder layers
@@ -47,9 +42,10 @@ class ChessFormer(nn.Module):
                    for _ in range(nb_decoder_layers)]
         self.decoder = nn.ModuleList(decoder)
                 
-        self.action_scorer = nn.Linear(embedding_dim, 1)
+        self.q_scorer = nn.Linear(embedding_dim, 1)
         
-    def forward(self, pieces_ids, colors_ids, start_move_indexes, end_move_indexes):
+    def forward(self, pieces_ids, colors_ids, start_move_indexes, end_move_indexes,
+                decoder_attention_mask=None, target_mask=None):
         """
         Args:
             pieces_ids (torch.tensor[torch.Long]): id of each piece
@@ -71,8 +67,15 @@ class ChessFormer(nn.Module):
         hidden_state_decoder = self.decoder_embeddings(start_move_indexes, end_move_indexes)
         
         for decoder_layer in self.decoder:
-            hidden_state_decoder = decoder_layer(hidden_state_encoder, hidden_state_decoder)
+            hidden_state_decoder = decoder_layer(hidden_state_encoder,
+                                                 hidden_state_decoder,
+                                                 attention_mask=decoder_attention_mask)
             
-        actions_score = self.action_scorer(hidden_state_decoder)
+        q_scores = self.q_scorer(hidden_state_decoder)
         
-        return actions_score
+        if target_mask is not None:
+            q_scores[target_mask] = float('-inf')
+        
+        return q_scores
+    
+    
