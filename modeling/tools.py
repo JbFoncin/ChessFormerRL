@@ -1,9 +1,8 @@
 import torch as t
 from torch.nn.utils.rnn import pad_sequence
 
-from chesstools.tools import get_all_encoded_pieces_and_colors, get_index
+from chesstools.tools import get_all_encoded_pieces_and_colors, get_index, PADDING_LM_ID
 
-PADDING_LM_ID = 64
 
 def prepare_input_for_batch(inference_data_list):
     """generates input for training from previously generated data
