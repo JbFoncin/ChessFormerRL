@@ -4,61 +4,6 @@ import torch as t
 from torch import nn
 
 
-class ChessFormerEncoderEmbedding(nn.Module):
-    """
-    basic embedding layer
-    """
-    
-    def __init__(self, embedding_dim):
-        """
-        Args:
-            embedding_dim (int): size of the embeddings
-        """
-        
-        super().__init__()
-        
-        self.position_emb = nn.Embedding(64, embedding_dim=embedding_dim)
-        self.piece_emb = nn.Embedding(7, embedding_dim=embedding_dim)
-        self.color_emb = nn.Embedding(3, embedding_dim=embedding_dim)
-        self.register_buffer('indexes', t.arange(64, dtype=t.long))
-        
-    def forward(self, pieces_ids, color_ids):
-        """
-        Args:
-            pieces_ids (torch.tensor): id of each piece
-            color_ids (torch.tensor): color of each piece (0 for empty box, 1 for player piece, 2 for competitor piece)
-        Returns:
-            torch.tensor: tensor of dim (64 * embedding_dim)
-        """
-        return self.position_emb(self.indexes) + self.piece_emb(pieces_ids) + self.color_emb(color_ids)
-    
-    
-class ChessFormerDecoderEmbedding(nn.Module):
-    """
-    positional embeddings for decoder
-    """
-    def __init__(self, embedding_dim):
-        """
-        Args:
-            embedding_dim (int): embedding size
-        """
-        super().__init__()
-        
-        self.initial_position_embedding = nn.Embedding(65, embedding_dim=embedding_dim)
-        self.destination_embedding = nn.Embedding(65, embedding_dim=embedding_dim)
-    
-    def forward(self, initial_position_indexes, destination_indexes):
-        """
-        Args:
-            initial_position_indexes (torch.tensor): tensor of starting position index of all allowed movements
-            destination_indexes (torch.tensor): destination index for all allowed moves
-
-        Returns:
-            torch.tensor: tensor of dim (number of allowed moves * embedding_dim)
-        """      
-        return self.initial_position_embedding(initial_position_indexes) + \
-               self.destination_embedding(destination_indexes)
-    
 class ResidualMultiHeadAttention(nn.Module):
     """
     simple attention head, basic implementation. 
