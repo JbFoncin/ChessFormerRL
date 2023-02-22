@@ -10,7 +10,7 @@ PIECES_MAP = {value: i for i, value in enumerate(['b', 'k', 'n', 'p', 'q', 'r', 
 PADDING_LM_ID = 64 # legal move padding value
 
 
-def get_piece_and_index(coord, board):
+def get_piece(coord, board):
     """
     Returns piece type for a given index.
     used to get the piece involved in a possible action.
@@ -26,7 +26,7 @@ def get_piece_and_index(coord, board):
     board_pieces_flattened = str(board).replace('\n', ' ').split(' ')
     index = COORD_MAP[coord[0]] * 8 + int(coord[1]) - 1
     piece = board_pieces_flattened[index]
-    return PIECES_MAP[piece.lower()], piece.islower(), index
+    return piece.lower()
 
 def get_index(coord):
     """
