@@ -1,7 +1,9 @@
 from torch import nn
 
-from .layers import ActionDecoderLayer, BoardEncoderLayer
-from .sublayers import ChessFormerDecoderEmbedding, ChessFormerEncoderEmbedding
+from .layers import (ActionDecoderLayer,
+                     BoardEncoderLayer,
+                     ChessFormerDecoderEmbedding,
+                     ChessFormerEncoderEmbedding)
 
 
 class ChessFormer(nn.Module):
@@ -52,6 +54,8 @@ class ChessFormer(nn.Module):
             colors_ids (torch.tensor[torch.Long]): color of each piece (0 or 1)
             start_move_indexes (torch.tensor[torch.Long]): start move for each possible action
             end_move_indexes (torch.tensor[torch.Long]): destination for each possible action
+            decoder_attention_mask (torch.tensor[torch.Bool]): padding mask to avoid attention on padded token for decoder
+            target_mask (torch.tensor[torch.Bool]): mask for targets to be set at -inf 
 
         Returns:
             torch.tensor: a tensor of size (possible_actions)
