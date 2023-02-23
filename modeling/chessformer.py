@@ -79,8 +79,8 @@ class ChessFormer(nn.Module):
         
 
         if target_mask is not None:
-            q_scores[target_mask] = float('-inf')
+            q_scores.squeeze(2).masked_fill(target_mask, float('-inf'))
         
-        return q_scores.view(q_scores.size(0), -1)
+        return q_scores
     
     
