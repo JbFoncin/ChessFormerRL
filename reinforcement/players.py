@@ -10,17 +10,9 @@ WHITE_COLOR_MAPPING = {None: 0, 'w': 1, 'b': 2}
 BLACK_COLOR_MAPPING = {None: 0, 'b': 1, 'w': 2}
 
 class PlayerABC(ABC):
-    def __init__(self, color, *args, **kwargs):
-        """
-        Args:
-            color (str): 'w' or 'b'
-        """
-        if color == 'w':
-            self.color_map = WHITE_COLOR_MAPPING
-            self.color = WHITE
-        elif color == 'b':
-            self.color_map = BLACK_COLOR_MAPPING
-            self.color = BLACK
+    def __init__(self, *args, **kwargs):
+        self.color_map = None
+        self.color = None
     
     def choose_random_action(self, board):
         """
@@ -43,6 +35,19 @@ class PlayerABC(ABC):
             list[str]: list of possible actions, like 'e2e4'
         """
         return [str(move) for move in board.legal_moves]
+    
+    def set_color(self, color):
+        """set player color
+
+        Args:
+            color (bool): True for white, False for black
+        """
+        if color:
+            self.color_map = WHITE_COLOR_MAPPING
+            self.color = WHITE
+        else:
+            self.color_map = BLACK_COLOR_MAPPING
+            self.color = BLACK
 
 
 class DummyPlayer(PlayerABC):
@@ -60,14 +65,14 @@ class DummyPlayer(PlayerABC):
     
 
 class ModelPlayer(PlayerABC):
-    def __init__(self, color, model, random_action_rate):
+    def __init__(self, model, random_action_rate):
         """
         Args:
             color (str): 'b' for black or 'w' for white
             model (nn.Module): the policy
             
         """
-        super().__init__(color)
+        super().__init__()
         
         self.model = model
         self.random_action_rate = random_action_rate
