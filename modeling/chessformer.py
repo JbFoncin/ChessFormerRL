@@ -77,9 +77,10 @@ class ChessFormer(nn.Module):
             
         q_scores = self.q_scorer(hidden_state_decoder)
         
+
         if target_mask is not None:
             q_scores[target_mask] = float('-inf')
         
-        return q_scores
+        return q_scores.view(q_scores.size(0), -1)
     
     

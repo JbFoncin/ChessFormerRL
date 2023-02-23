@@ -1,8 +1,6 @@
 """
 This module contains tools used to convert states and actions from board to model inputs
 """
-import torch as t
-
 
 COORD_MAP = {key: value for key, value in zip('abcdefgh', [0, 1, 2, 3, 4, 5, 6, 7])}
 REVERSED_COORD_MAP = {value: key for key, value in COORD_MAP.items()}

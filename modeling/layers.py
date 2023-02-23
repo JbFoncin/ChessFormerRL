@@ -1,6 +1,8 @@
+import torch as t
 from torch import nn
 
 from .sublayers import BottleNeck, ResidualMultiHeadAttention
+
 
 class ChessFormerEncoderEmbedding(nn.Module):
     """
