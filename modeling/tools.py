@@ -82,7 +82,6 @@ def make_attention_mask(padded_sequence):
     """
     
     pad_mask = padded_sequence != PADDING_LM_ID
-    batch_size = pad_mask.size(0)
     
     attention_masks = t.repeat_interleave(pad_mask.unsqueeze(2), 64, dim=2)
     
