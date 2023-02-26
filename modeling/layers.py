@@ -1,6 +1,8 @@
 import torch as t
 from torch import nn
 
+from chesstools.tools import BOARD_INDEXES
+
 from .sublayers import BottleNeck, ResidualMultiHeadAttention
 
 
@@ -20,7 +22,7 @@ class ChessFormerEncoderEmbedding(nn.Module):
         self.position_emb = nn.Embedding(64, embedding_dim=embedding_dim)
         self.piece_emb = nn.Embedding(7, embedding_dim=embedding_dim)
         self.color_emb = nn.Embedding(3, embedding_dim=embedding_dim)
-        self.register_buffer('indexes', t.arange(64, dtype=t.long))
+        self.register_buffer('indexes', t.tensor(BOARD_INDEXES, dtype=t.long))
         
     def forward(self, pieces_ids, color_ids):
         """

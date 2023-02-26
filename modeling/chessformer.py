@@ -1,9 +1,7 @@
 from torch import nn
 
-from .layers import (ActionDecoderLayer,
-                     BoardEncoderLayer,
-                     ChessFormerDecoderEmbedding,
-                     ChessFormerEncoderEmbedding)
+from .layers import (ActionDecoderLayer, BoardEncoderLayer,
+                     ChessFormerDecoderEmbedding, ChessFormerEncoderEmbedding)
 
 
 class ChessFormer(nn.Module):
@@ -81,6 +79,6 @@ class ChessFormer(nn.Module):
         if target_mask is not None:
             q_scores.squeeze(2).masked_fill_(target_mask, float('-inf'))
         
-        return q_scores
+        return q_scores.squeeze(-1)
     
     

@@ -7,6 +7,10 @@ REVERSED_COORD_MAP = {value: key for key, value in COORD_MAP.items()}
 PIECES_MAP = {value: i for i, value in enumerate(['b', 'k', 'n', 'p', 'q', 'r', '.'])}
 PADDING_LM_ID = 64 # legal move padding value
 
+BOARD_INDEXES = []
+for i in range(7, -1, -1):
+    BOARD_INDEXES.extend((range(i * 8, (i + 1) * 8)))
+
 
 def get_piece(coord, board):
     """

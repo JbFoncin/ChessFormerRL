@@ -4,13 +4,15 @@ The trainer trains a first model, used to train a better one and so on
 """
 from collections import deque
 from copy import deepcopy
-from random import shuffle
+from random import choices, shuffle
 
 import torch as t
 from chess import Board
+from torch import nn
+from torch.optim import Adam
 from tqdm import tqdm
 
-from modeling.tools import prepare_for_model_inference
+from modeling.tools import prepare_for_model_inference, prepare_input_for_batch
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
@@ -20,7 +22,7 @@ class DQNTrainer:
     Vanilla DQN
     """
     def __init__(self, model, random_action_rate, buffer_size,
-                 update_target_q_step, competitor):
+                 update_target_q_step, competitor, batch_size):
         """
         Args:
             model (t.nn.Module): The model to be trained
@@ -30,12 +32,16 @@ class DQNTrainer:
         """
         self.model = model
         self._set_frozen_model(model)
+        self.batch_size = batch_size
+        self.loss_criterion = nn.MSELoss()
+        self.optimizer = Adam(self.model.parameters())
         
         self.update_target_q_step = update_target_q_step
         
         self.buffer = deque(maxlen=buffer_size)
         
         self.previous_action_data = None 
+        self.step = 0
         
         self.competitor = competitor
         self.agent = ModelPlayer(model=self.model, random_action_rate=random_action_rate)
@@ -188,5 +194,24 @@ class DQNTrainer:
             game_continues = True
             
             while game_continues:
+                
                 reward, board, game_continues = self.generate_sample(board)
                 game_reward += reward
+                self.train_batch()
+                
+    def train_batch(self):
+        
+        sample = choices(self.buffer)
+        batch = prepare_input_for_batch(sample)
+        
+        model_output = self.model(**batch['model_inputs'])
+        
+        predicted = t.gather(model_output, dim=1, index=batch['targets']['targets_idx'].unsqueeze(1))
+        
+        error = predicted - batch['targets']['targets']
+        
+        loss = self.loss_criterion(error)
+        
+        loss.backward()
+        
+        self.optimizer.step()
