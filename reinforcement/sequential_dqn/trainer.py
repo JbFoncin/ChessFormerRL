@@ -16,6 +16,9 @@ from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
 class DQNTrainer():
+    """
+    Vanilla DQN
+    """
     def __init__(self, model, random_action_rate, buffer_size,
                  update_target_q_step, competitor):
         """
@@ -52,7 +55,6 @@ class DQNTrainer():
             self.buffer.append(self.previous_action_data)
         
         self.previous_action_data = {**model_inputs, 'target': current_reward, 'target_idx': current_action}
-        
         
     @t.no_grad
     def get_q_hat_max(self, board):
