@@ -23,7 +23,7 @@ def get_endgame_reward(board, color):
     if board.is_checkmate():
         return REWARD_CHECKMATE / MAX_REWARD, False
     
-    elif board.has_unsufficient_material(color):
+    elif board.has_insufficient_material(color):
         return REWARD_INSUFFICIENT / MAX_REWARD, False
     
     elif board.is_stalemate():

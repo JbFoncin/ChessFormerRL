@@ -15,7 +15,7 @@ from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
-class DQNTrainer():
+class DQNTrainer:
     """
     Vanilla DQN
     """
@@ -56,7 +56,6 @@ class DQNTrainer():
         
         self.previous_action_data = {**model_inputs, 'target': current_reward, 'target_idx': current_action}
         
-    @t.no_grad
     def get_q_hat_max(self, board):
         """
         Args:
@@ -89,7 +88,9 @@ class DQNTrainer():
         Returns:
             chess.Board: the new game
         """
-        color_agent, color_competitor = shuffle([True, False]) 
+        colors = [True, False]
+        shuffle(colors)
+        color_agent, color_competitor = colors
         # True for white and False for black like in the chess package
         self.agent.set_color(color_agent)
         self.competitor.set_color(color_competitor)
@@ -98,7 +99,7 @@ class DQNTrainer():
         
         if self.competitor.color: #if competitor plays first
             
-            action, _ = self.competitor.choose_action(board)
+            action, _, _ = self.competitor.choose_action(board)
             board.push_san(action)
         
         return board
@@ -148,7 +149,7 @@ class DQNTrainer():
         
         competitor_action, _, _ = self.competitor.choose_action(board)
         
-        reward -= get_move_reward(board, action)
+        reward -= get_move_reward(board, competitor_action)
         
         board.push_san(competitor_action)
         
@@ -184,7 +185,7 @@ class DQNTrainer():
             
             board = self.init_game()
             
-            game_continues = False
+            game_continues = True
             
             while game_continues:
                 reward, board, game_continues = self.generate_sample(board)

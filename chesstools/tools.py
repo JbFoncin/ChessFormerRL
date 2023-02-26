@@ -22,7 +22,7 @@ def get_piece(coord, board):
         tuple[int, int, int]: piece encoded, color and index
     """
     board_pieces_flattened = str(board).replace('\n', ' ').split(' ')
-    index = COORD_MAP[coord[0]] * 8 + int(coord[1]) - 1
+    index = COORD_MAP[coord[0]] + (8 - (int(coord[1]))) * 8
     piece = board_pieces_flattened[index]
     return piece.lower()
 
@@ -36,7 +36,7 @@ def get_index(coord):
     Returns:
         int: index on the checkboard
     """
-    return COORD_MAP[coord[0]] * 8 + int(coord[1]) - 1
+    return COORD_MAP[coord[0]] + (8 - (int(coord[1]))) * 8
 
 def get_all_encoded_pieces_and_colors(board, color_map):
     """

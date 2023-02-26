@@ -117,7 +117,7 @@ class ModelPlayer(PlayerABC):
             int: index of the chosen action
             inference data: dict of tensor to be stored in the replay buffer
         """        
-        action, chosen_action_index, _ = super(self).choose_random_action(board)
+        action, chosen_action_index, _ = super().choose_random_action(board)
         
         inference_data = prepare_for_model_inference(board, self.color_map)
         
