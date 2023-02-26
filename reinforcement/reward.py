@@ -1,11 +1,12 @@
 from chesstools.tools import get_piece
 
 REWARDS = {'b': 3, 'n': 3, 'p':1, 'q': 10, 'r': 5, '.': 0}
-REWARD_CHECKMATE = -20
+REWARD_CHECKMATE = 20
 REWARD_STALEMATE = -10
-REWARD_INSUFFICIENT = -20
+REWARD_INSUFFICIENT = 20
 REWARD_SEVENTYFIVE = -10
 REWARD_FIVEFOLD = -10
+MAX_REWARD = 20
 
 def get_endgame_reward(board, color):
     """
@@ -20,19 +21,19 @@ def get_endgame_reward(board, color):
         bool: is endgame neutral
     """
     if board.is_checkmate():
-        return REWARD_CHECKMATE, False
+        return REWARD_CHECKMATE / MAX_REWARD, False
     
     elif board.has_unsufficient_material(color):
-        return REWARD_INSUFFICIENT, False
+        return REWARD_INSUFFICIENT / MAX_REWARD, False
     
     elif board.is_stalemate():
-        return REWARD_STALEMATE, True
+        return REWARD_STALEMATE / MAX_REWARD, True
         
     elif board.is_seventyfive_moves():
-        return REWARD_SEVENTYFIVE, True
+        return REWARD_SEVENTYFIVE / MAX_REWARD, True
     
     elif board.is_fivefold_repetition():
-        return REWARD_FIVEFOLD, True
+        return REWARD_FIVEFOLD / MAX_REWARD, True
     
     else:
         return None, None
@@ -50,4 +51,4 @@ def get_move_reward(board, move):
     """
     destination = move[2:]
     piece = get_piece(destination, board)
-    return REWARDS[piece]
+    return REWARDS[piece] / MAX_REWARD

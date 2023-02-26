@@ -21,9 +21,12 @@ class PlayerABC(ABC):
 
         Returns:
             str: chosen action, like 'e2e4'
+            int: action index
+            None: the inference data
         """
         actions = self.get_possible_actions(board)
-        return choice(actions)
+        action_index = int(random() * len(actions))
+        return actions[action_index], action_index, None
         
     @staticmethod
     def get_possible_actions(board):
@@ -60,6 +63,7 @@ class DummyPlayer(PlayerABC):
             board (chess.Board): the board
         Returns:
             str: initital and final positions as str (like 'e2e4')
+            int: action index
         """
         return self.choose_random_action(board)
     
@@ -84,6 +88,8 @@ class ModelPlayer(PlayerABC):
             board (chess.board): the current game object
         Returns:
             str: initital and final positions as str (like 'e2e4')
+            int: action index
+            inference data: dict of tensor to be stored in the replay buffer
         """
         if random() < self.random_action_rate:
             
@@ -99,4 +105,20 @@ class ModelPlayer(PlayerABC):
         
         chosen_action_index = t.argmax(actions_scores).item()
         
-        return possible_actions[chosen_action_index]
+        return possible_actions[chosen_action_index], chosen_action_index, inference_data
+    
+    def choose_random_action(self, board):
+        """
+        Args:
+            board (chess.Board): the current game
+
+        Returns:
+            str: next move as str
+            int: index of the chosen action
+            inference data: dict of tensor to be stored in the replay buffer
+        """        
+        action, chosen_action_index, _ = super(self).choose_random_action(board)
+        
+        inference_data = prepare_for_model_inference(board, self.color_map)
+        
+        return action, chosen_action_index, inference_data

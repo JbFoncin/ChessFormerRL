@@ -1,7 +1,8 @@
 import torch as t
 from torch.nn.utils.rnn import pad_sequence
 
-from chesstools.tools import get_all_encoded_pieces_and_colors, get_index, PADDING_LM_ID
+from chesstools.tools import (PADDING_LM_ID, get_all_encoded_pieces_and_colors,
+                              get_index)
 
 
 def prepare_input_for_batch(inference_data_list):
@@ -81,7 +82,7 @@ def make_attention_mask(padded_sequence):
         t.tensor: the mask to be applied after softmax
     """
     
-    pad_mask = padded_sequence != PADDING_LM_ID
+    pad_mask = padded_sequence == PADDING_LM_ID
     
     attention_masks = t.repeat_interleave(pad_mask.unsqueeze(2), 64, dim=2)
     
