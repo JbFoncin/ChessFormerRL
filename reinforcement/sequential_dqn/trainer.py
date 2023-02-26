@@ -1,3 +1,7 @@
+"""
+Here we try a sequential learning method.
+The trainer trains a first model, used to train a better one and so on
+"""
 from collections import deque
 from copy import deepcopy
 from random import shuffle
@@ -11,11 +15,6 @@ from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
-#"""
-#This module is in WIP state
-#Here we try a sequential learning method.
-#The trainer trains a first model, used to train a better one and so on
-#"""
 class DQNTrainer():
     def __init__(self, model, random_action_rate, buffer_size,
                  update_target_q_step, competitor):
