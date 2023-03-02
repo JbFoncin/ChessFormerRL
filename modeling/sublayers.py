@@ -57,7 +57,7 @@ class ResidualMultiHeadAttention(nn.Module):
         if attention_mask is not None:
             attention_mask_unsqueezed = attention_mask.unsqueeze(1)
             mask_all_heads = t.repeat_interleave(attention_mask_unsqueezed, self.nb_head, dim=1)
-            attn.masked_fill_(mask_all_heads, 0.0)
+            attn = attn.masked_fill(mask_all_heads, 0.0)
             
         attn_product = attn @ value
         
