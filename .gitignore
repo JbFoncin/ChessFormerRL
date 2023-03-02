@@ -128,5 +128,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-sandbox.ipynb
-sandbox_2.ipynb
+sandbox*
+runs/*

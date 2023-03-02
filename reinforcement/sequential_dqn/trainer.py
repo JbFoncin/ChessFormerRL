@@ -9,7 +9,7 @@ from random import choices, shuffle
 import torch as t
 from chess import Board
 from torch import nn
-from torch.optim import Adam
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from modeling.tools import prepare_for_model_inference, prepare_input_for_batch
@@ -22,7 +22,8 @@ class DQNTrainer:
     Vanilla DQN
     """
     def __init__(self, model, random_action_rate, buffer_size,
-                 update_target_q_step, competitor, batch_size):
+                 update_target_q_step, competitor, batch_size,
+                 optimizer, experiment_name):
         """
         Args:
             model (t.nn.Module): The model to be trained
@@ -34,7 +35,7 @@ class DQNTrainer:
         self._set_frozen_model(model)
         self.batch_size = batch_size
         self.loss_criterion = nn.MSELoss()
-        self.optimizer = Adam(self.model.parameters())
+        self.optimizer = optimizer
         
         self.update_target_q_step = update_target_q_step
         
@@ -45,6 +46,7 @@ class DQNTrainer:
         
         self.competitor = competitor
         self.agent = ModelPlayer(model=self.model, random_action_rate=random_action_rate)
+        self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
         
     def update_action_data_buffer(self, q_hat_max, model_inputs, current_action, current_reward):
         """
@@ -185,7 +187,7 @@ class DQNTrainer:
         Args:
             num_games (int): 
         """        
-        for _ in tqdm(range(num_games)):
+        for epoch in tqdm(range(num_games)):
             
             game_reward = 0
             
@@ -195,11 +197,23 @@ class DQNTrainer:
             
             while game_continues:
                 
+                step += 1
                 reward, board, game_continues = self.generate_sample(board)
                 game_reward += reward
-                self.train_batch()
+                if len(self.buffer) > self.batch_size:
+                    loss = self.train_batch()
+                    self.summary_writer.add_scalar('MSE', loss, step)
+            
+            self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
                 
     def train_batch(self):
+        """
+        samples and train one batch
+
+        Returns:
+            _type_: _description_
+        """
+        self.optimizer.zero_grad()
         
         sample = choices(self.buffer)
         batch = prepare_input_for_batch(sample)
@@ -208,10 +222,10 @@ class DQNTrainer:
         
         predicted = t.gather(model_output, dim=1, index=batch['targets']['targets_idx'].unsqueeze(1))
         
-        error = predicted - batch['targets']['targets']
-        
-        loss = self.loss_criterion(error)
+        loss = self.loss_criterion(predicted, batch['targets']['targets'])
         
         loss.backward()
         
         self.optimizer.step()
+        
+        return loss.cpu().detach().item()
