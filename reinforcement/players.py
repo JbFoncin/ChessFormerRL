@@ -69,7 +69,7 @@ class DummyPlayer(PlayerABC):
     
 
 class ModelPlayer(PlayerABC):
-    def __init__(self, model, random_action_rate):
+    def __init__(self, model, random_action_rate, model_device):
         """
         Args:
             color (str): 'b' for black or 'w' for white
@@ -80,6 +80,7 @@ class ModelPlayer(PlayerABC):
         
         self.model = model
         self.random_action_rate = random_action_rate
+        self.model_device = model_device
 
     @t.no_grad()
     def choose_action(self, board):
@@ -97,13 +98,13 @@ class ModelPlayer(PlayerABC):
         
         possible_actions = self.get_possible_actions(board)
                             
-        inference_data = prepare_for_model_inference(board, self.color_map)
+        inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
         
         actions_scores = self.model(**inference_data)
         
         actions_scores = actions_scores.squeeze(1)
         
-        chosen_action_index = t.argmax(actions_scores).item()
+        chosen_action_index = t.argmax(actions_scores).cpu().item()
         
         return possible_actions[chosen_action_index], chosen_action_index, inference_data
     

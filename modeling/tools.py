@@ -5,7 +5,7 @@ from chesstools.tools import (PADDING_LM_ID, get_all_encoded_pieces_and_colors,
                               get_index)
 
 
-def prepare_input_for_batch(inference_data_list):
+def prepare_input_for_batch(inference_data_list, device='cpu'):
     """generates input for training from previously generated data
 
     Args:
@@ -14,21 +14,21 @@ def prepare_input_for_batch(inference_data_list):
     Returns:
         dict: model inputs and targets
     """
-    pieces_ids = t.cat([inf_data['pieces_ids'] for inf_data in inference_data_list], dim=0)
-    colors_ids = t.cat([inf_data['colors_ids'] for inf_data in inference_data_list], dim=0)
+    pieces_ids = t.cat([inf_data['pieces_ids'] for inf_data in inference_data_list], dim=0).to(device)
+    colors_ids = t.cat([inf_data['colors_ids'] for inf_data in inference_data_list], dim=0).to(device)
     
     starting_points = [inf_data['start_move_indexes'].squeeze(0) for inf_data in inference_data_list]
-    starting_points_padded = pad_sequence(starting_points, batch_first=True, padding_value=PADDING_LM_ID)
+    starting_points_padded = pad_sequence(starting_points, batch_first=True, padding_value=PADDING_LM_ID).to(device)
     
     destinations = [inf_data['end_move_indexes'].squeeze(0) for inf_data in inference_data_list]
-    destinations_padded = pad_sequence(destinations, batch_first=True, padding_value=PADDING_LM_ID)
+    destinations_padded = pad_sequence(destinations, batch_first=True, padding_value=PADDING_LM_ID).to(device)
     
-    attention_mask = make_attention_mask(starting_points_padded)
+    attention_mask = make_attention_mask(starting_points_padded).to(device)
     
-    targets = t.tensor([inf_data['target'] for inf_data in inference_data_list])
-    targets_idx = t.tensor([inf_data['target_idx'] for inf_data in inference_data_list])
+    targets = t.tensor([inf_data['target'] for inf_data in inference_data_list], device=device)
+    targets_idx = t.tensor([inf_data['target_idx'] for inf_data in inference_data_list], device=device)
     
-    target_mask = starting_points_padded == PADDING_LM_ID
+    target_mask = (starting_points_padded == PADDING_LM_ID).to(device)
     
     batch_data = {
         'model_inputs':
@@ -45,7 +45,7 @@ def prepare_input_for_batch(inference_data_list):
     
     return batch_data
 
-def prepare_for_model_inference(board, color_map):
+def prepare_for_model_inference(board, color_map, device='cpu'):
     """
     Args:
         board (chess.Board): object managing state and possible actions
@@ -53,15 +53,15 @@ def prepare_for_model_inference(board, color_map):
     """
     pieces, colors = get_all_encoded_pieces_and_colors(board, color_map)
     
-    pieces = t.tensor(pieces).unsqueeze(0)
-    colors = t.tensor(colors).unsqueeze(0)
+    pieces = t.tensor(pieces).unsqueeze(0).to(device)
+    colors = t.tensor(colors).unsqueeze(0).to(device)
     possible_actions = [str(move) for move in board.legal_moves]
         
     starting_moves_indexes = [get_index(move[:2]) for move in possible_actions]
-    starting_moves_indexes = t.tensor(starting_moves_indexes).unsqueeze(0)
+    starting_moves_indexes = t.tensor(starting_moves_indexes, device=device).unsqueeze(0)
     
     moves_destinations = [get_index(move[2:]) for move in possible_actions]
-    moves_destinations = t.tensor(moves_destinations).unsqueeze(0)
+    moves_destinations = t.tensor(moves_destinations, device=device).unsqueeze(0)
     
     inference_data = {
         'pieces_ids': pieces,

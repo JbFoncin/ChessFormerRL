@@ -23,7 +23,7 @@ class DQNTrainer:
     """
     def __init__(self, model, random_action_rate, buffer_size,
                  update_target_q_step, competitor, batch_size,
-                 optimizer, experiment_name):
+                 optimizer, experiment_name, model_device):
         """
         Args:
             model (t.nn.Module): The model to be trained
@@ -32,22 +32,25 @@ class DQNTrainer:
             update_target_q_step: number of step between q_hat network updates
         """
         self.model = model
+        self.model_device = model_device
         self._set_frozen_model(model)
         self.batch_size = batch_size
-        self.loss_criterion = nn.MSELoss()
+        self.loss_criterion = nn.MSELoss().to(model_device)
         self.optimizer = optimizer
-        
+
         self.update_target_q_step = update_target_q_step
-        
+
         self.buffer = deque(maxlen=buffer_size)
-        
-        self.previous_action_data = None 
+
+        self.previous_action_data = None
         self.step = 0
-        
+
         self.competitor = competitor
-        self.agent = ModelPlayer(model=self.model, random_action_rate=random_action_rate)
+        self.agent = ModelPlayer(model=self.model,
+                                 random_action_rate=random_action_rate,
+                                 model_device=model_device)
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
-        
+
     def update_action_data_buffer(self, q_hat_max, model_inputs, current_action, current_reward):
         """
         updates previous state target with the maximum q_hat value
@@ -58,12 +61,12 @@ class DQNTrainer:
             reward (float): reward associated with current state encoded in model inputs and current action
         """
         if self.previous_action_data is not None:
-            
+
             self.previous_action_data['target'] += q_hat_max
             self.buffer.append(self.previous_action_data)
-        
+
         self.previous_action_data = {**model_inputs, 'target': current_reward, 'target_idx': current_action}
-        
+
     def get_q_hat_max(self, board):
         """
         Args:
@@ -72,12 +75,12 @@ class DQNTrainer:
         Returns:
             float: the q_hat_max_value
         """
-        data_inference = prepare_for_model_inference(board, self.agent.color_map)
+        data_inference = prepare_for_model_inference(board, self.agent.color_map, device=self.model_device)
         q_hat_values = self.frozen_model(**data_inference)
         q_hat_max = q_hat_values.max().item()
-        
+
         return q_hat_max
-        
+
     def _set_frozen_model(self, model):
         """
         Set or update q_hat
@@ -88,7 +91,7 @@ class DQNTrainer:
         self.frozen_model = deepcopy(model)
         self.frozen_model.eval()
         self.frozen_model.requires_grad_(False)
-        
+
     def init_game(self):
         """
         inits board, set players colors, manage first action-state if competitor is white
@@ -102,16 +105,16 @@ class DQNTrainer:
         # True for white and False for black like in the chess package
         self.agent.set_color(color_agent)
         self.competitor.set_color(color_competitor)
-        
+
         board = Board()
-        
+
         if self.competitor.color: #if competitor plays first
-            
+
             action, _, _ = self.competitor.choose_action(board)
             board.push_san(action)
-        
+
         return board
-    
+
     def clean_previous_action_data(self):
         """
         called when episode is finished to avoid adding max q_hat
@@ -126,86 +129,88 @@ class DQNTrainer:
 
         Args:
             board (chess.Board): the current game
-            
+
         Returns:
             chess.Board: the current game
             bool: True if game is finished
         """
-        
+
         q_hat_max = self.get_q_hat_max(board)
-        
+
         #agent plays
-        action, action_idx, inference_data = self.agent.choose_action(board)            
-        
+        action, action_idx, inference_data = self.agent.choose_action(board)
+
         reward = get_move_reward(board, action)
-        
+
         board.push_san(action)
-        
+
         # Chech if competitor can play and get reward
-        
+
         endgame_reward, _ = get_endgame_reward(board, self.competitor.color)
-        
+
         if endgame_reward is not None: #finish game
-            
+
             reward += endgame_reward
-            
+
             self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
-            
+
             self.clean_previous_action_data()
-            
+
             return reward, board, False
-        
+
         competitor_action, _, _ = self.competitor.choose_action(board)
-        
+
         reward -= get_move_reward(board, competitor_action)
-        
+
         board.push_san(competitor_action)
-        
+
         # check if the game is finished after competitor's action
-        
+
         endgame_reward, neutral = get_endgame_reward(board, self.agent.color)
-        
+
         if endgame_reward is not None:
-            
+
             if neutral:
                 reward += endgame_reward #stalemate remains bad reward
             else:
                 reward -= endgame_reward
-            
+
             self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
-            
+
             self.clean_previous_action_data()
-            
+
             return reward, board, False
-        
+
         self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
-        
+
         return reward, board, True
-              
+
     def train(self, num_games):
         """
         Args:
-            num_games (int): 
-        """        
+            num_games (int):
+        """
+        step = 0
+        
         for epoch in tqdm(range(num_games)):
-            
+
             game_reward = 0
-            
+
             board = self.init_game()
-            
+
             game_continues = True
-            
+
             while game_continues:
-                
+
                 step += 1
                 reward, board, game_continues = self.generate_sample(board)
                 game_reward += reward
                 if len(self.buffer) > self.batch_size:
                     loss = self.train_batch()
                     self.summary_writer.add_scalar('MSE', loss, step)
-            
+
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
-                
+
     def train_batch(self):
         """
         samples and train one batch
@@ -214,18 +219,19 @@ class DQNTrainer:
             _type_: _description_
         """
         self.optimizer.zero_grad()
-        
-        sample = choices(self.buffer)
-        batch = prepare_input_for_batch(sample)
-        
+
+        sample = choices(self.buffer, k=self.batch_size)
+        batch = prepare_input_for_batch(sample, device=self.model_device)
+
         model_output = self.model(**batch['model_inputs'])
-        
-        predicted = t.gather(model_output, dim=1, index=batch['targets']['targets_idx'].unsqueeze(1))
-        
-        loss = self.loss_criterion(predicted, batch['targets']['targets'])
-        
+
+        predicted = t.gather(model_output, dim=1,
+                             index=batch['targets']['targets_idx'].unsqueeze(1))
+
+        loss = self.loss_criterion(predicted.squeeze(-1), batch['targets']['targets'])
+
         loss.backward()
-        
+
         self.optimizer.step()
-        
+
         return loss.cpu().detach().item()
