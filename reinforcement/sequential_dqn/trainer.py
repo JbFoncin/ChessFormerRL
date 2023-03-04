@@ -208,6 +208,8 @@ class DQNTrainer:
                 if len(self.buffer) > self.batch_size:
                     loss = self.train_batch()
                     self.summary_writer.add_scalar('MSE', loss, step)
+                if step % self.update_target_q_step:
+                    self._set_frozen_model(self.model)
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
 
