@@ -12,7 +12,9 @@ from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from modeling.tools import prepare_for_model_inference, prepare_input_for_batch
+from modeling.tools import (prepare_for_model_inference, 
+                            prepare_input_for_batch, 
+                            move_data_to_device)
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
@@ -43,7 +45,6 @@ class DQNTrainer:
         self.buffer = deque(maxlen=buffer_size)
 
         self.previous_action_data = None
-        self.step = 0
 
         self.competitor = competitor
         self.agent = ModelPlayer(model=self.model,
@@ -64,6 +65,8 @@ class DQNTrainer:
 
             self.previous_action_data['target'] += q_hat_max
             self.buffer.append(self.previous_action_data)
+            
+        move_data_to_device(model_inputs, 'cpu')
 
         self.previous_action_data = {**model_inputs, 'target': current_reward, 'target_idx': current_action}
 
@@ -151,6 +154,7 @@ class DQNTrainer:
         if endgame_reward is not None: #finish game
 
             reward += endgame_reward
+            
 
             self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
 
@@ -208,7 +212,7 @@ class DQNTrainer:
                 if len(self.buffer) > self.batch_size:
                     loss = self.train_batch()
                     self.summary_writer.add_scalar('MSE', loss, step)
-                if step % self.update_target_q_step:
+                if step % self.update_target_q_step == 0:
                     self._set_frozen_model(self.model)
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)

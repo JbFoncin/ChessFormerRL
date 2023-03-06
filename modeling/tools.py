@@ -10,6 +10,7 @@ def prepare_input_for_batch(inference_data_list, device='cpu'):
 
     Args:
         inference_data_list (list[dict]): the list of dict to aggregate
+        device (str): the device to create the tensors on
 
     Returns:
         dict: model inputs and targets
@@ -50,6 +51,10 @@ def prepare_for_model_inference(board, color_map, device='cpu'):
     Args:
         board (chess.Board): object managing state and possible actions
         color_map (dict): pieces color mapping for the current player
+        device (str): the device to create the tensors on
+        
+    Returns:
+        dict[t.Tensor]: dict of tensors needed for model inference
     """
     pieces, colors = get_all_encoded_pieces_and_colors(board, color_map)
     
@@ -73,7 +78,8 @@ def prepare_for_model_inference(board, color_map, device='cpu'):
     return inference_data
     
 def make_attention_mask(padded_sequence):
-    """makes attention mask for padded sequences
+    """
+    makes attention mask for padded sequences
 
     Args:
         padded_sequence (t.tensor): the sequence padded
@@ -87,3 +93,19 @@ def make_attention_mask(padded_sequence):
     attention_masks = t.repeat_interleave(pad_mask.unsqueeze(2), 64, dim=2)
     
     return attention_masks
+
+def move_data_to_device(data, device):
+    """
+    Moves recursively data to device
+
+    Args:
+        data (dict): a dict of dict or tensors
+        device (str): 'cuda' or 'cpu'
+    """    
+    for key in data:
+        
+        if isinstance(data[key], t.Tensor):
+            data[key] = data[key].to(device)
+            
+        if isinstance(data[key], dict):
+            return move_data_to_device(data[key], device)
