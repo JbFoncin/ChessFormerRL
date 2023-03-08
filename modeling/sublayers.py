@@ -9,7 +9,7 @@ class ResidualMultiHeadAttention(nn.Module):
     simple attention head, basic implementation. 
     WARNING: THE INPUT HAS TO BE NORMALIZED BEFORE
     """
-    def __init__(self, nb_head, dim_per_head, embedding_dim):
+    def __init__(self, nb_head, dim_per_head, embedding_dim, dropout=0.1):
         """
         Args:
             nb_head (int): number of attention heads
@@ -26,6 +26,7 @@ class ResidualMultiHeadAttention(nn.Module):
         self.value_projector = nn.Linear(embedding_dim, dim_per_head * nb_head, bias=False)
         self.output = nn.Linear(dim_per_head * nb_head, embedding_dim, bias=False)
         self.softmax = nn.Softmax(dim=-1)
+        self.dropout = nn.Dropout(p=dropout)
         
     def forward(self, hidden_state_query, hidden_state_key, hidden_state_value, attention_mask=None):
         """
@@ -59,6 +60,8 @@ class ResidualMultiHeadAttention(nn.Module):
             mask_all_heads = t.repeat_interleave(attention_mask_unsqueezed, self.nb_head, dim=1)
             attn = attn.masked_fill(mask_all_heads, 0.0)
             
+        attn = self.dropout(attn)
+            
         attn_product = attn @ value
         
         attn_product = attn_product.transpose(1, 2).contiguous().view(bs, seq_len_q, -1)
@@ -72,7 +75,7 @@ class BottleNeck(nn.Module):
     """
     basic bottleneck module
     """
-    def __init__(self, embedding_dim, hidden_dim):
+    def __init__(self, embedding_dim, hidden_dim, dropout=0.1):
         """
         Args:
             embedding_dim (int): hidden size of the model
@@ -83,6 +86,7 @@ class BottleNeck(nn.Module):
         self.w_1 = nn.Linear(embedding_dim, hidden_dim) 
         self.w_2 = nn.Linear(hidden_dim, embedding_dim) 
         self.activation = nn.GELU()
+        self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, input_):
         """
@@ -93,7 +97,7 @@ class BottleNeck(nn.Module):
             torch.tensor: input processed
         """
         out = self.w_2(self.activation(self.w_1(input_)))
-        
+        out = self.dropout(out)
         return out + input_     
         
         

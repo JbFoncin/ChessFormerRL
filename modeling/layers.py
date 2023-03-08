@@ -70,7 +70,8 @@ class BoardEncoderLayer(nn.Module):
                  embedding_dim,
                  nb_head,
                  dim_per_head,
-                 bottleneck_hidden_dim):
+                 bottleneck_hidden_dim,
+                 dropout=0.1):
         """
         Args:
             embedding_dim (int): embedding size
@@ -80,9 +81,9 @@ class BoardEncoderLayer(nn.Module):
         """
         super().__init__()
         
-        self.multihead_attention = ResidualMultiHeadAttention(nb_head, dim_per_head, embedding_dim)
+        self.multihead_attention = ResidualMultiHeadAttention(nb_head, dim_per_head, embedding_dim, dropout)
         
-        self.bottleneck = BottleNeck(embedding_dim, bottleneck_hidden_dim)
+        self.bottleneck = BottleNeck(embedding_dim, bottleneck_hidden_dim, dropout)
         
         self.layernorm_1 = nn.LayerNorm(embedding_dim)
         self.layernorm_2 = nn.LayerNorm(embedding_dim)
@@ -115,7 +116,8 @@ class ActionDecoderLayer(nn.Module):
                  embedding_dim,
                  nb_head,
                  dim_per_head,
-                 bottleneck_hidden_dim):
+                 bottleneck_hidden_dim,
+                 dropout=0.1):
         """
         Args:
             embedding_dim (int): embedding size
@@ -125,9 +127,9 @@ class ActionDecoderLayer(nn.Module):
         """
         super().__init__()
         
-        self.multihead_attention = ResidualMultiHeadAttention(nb_head, dim_per_head, embedding_dim)
+        self.multihead_attention = ResidualMultiHeadAttention(nb_head, dim_per_head, embedding_dim, dropout)
         
-        self.bottleneck = BottleNeck(embedding_dim, bottleneck_hidden_dim)
+        self.bottleneck = BottleNeck(embedding_dim, bottleneck_hidden_dim, dropout)
         
         self.layernorm_1 = nn.LayerNorm(embedding_dim)
         self.layernorm_2 = nn.LayerNorm(embedding_dim)

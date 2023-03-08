@@ -9,7 +9,7 @@ class ChessFormer(nn.Module):
     The transformer model
     """
     def __init__(self, nb_encoder_layers, nb_decoder_layers, embedding_dim,
-                 bottleneck_hidden_dim, dim_per_head, nb_head):
+                 bottleneck_hidden_dim, dim_per_head, nb_head, dropout=0.1):
         """
         Args:
             nb_encoder_layers (int): number of encoder layers
@@ -27,7 +27,8 @@ class ChessFormer(nn.Module):
         encoder = [BoardEncoderLayer(embedding_dim,
                                      nb_head,
                                      dim_per_head,
-                                     bottleneck_hidden_dim)
+                                     bottleneck_hidden_dim,
+                                     dropout)
                    for _ in range(nb_encoder_layers)]
         self.encoder = nn.ModuleList(encoder)
         
@@ -38,7 +39,8 @@ class ChessFormer(nn.Module):
         decoder = [ActionDecoderLayer(embedding_dim,
                                       nb_head,
                                       dim_per_head,
-                                      bottleneck_hidden_dim)
+                                      bottleneck_hidden_dim,
+                                      dropout)
                    for _ in range(nb_decoder_layers)]
         self.decoder = nn.ModuleList(decoder)
                 
