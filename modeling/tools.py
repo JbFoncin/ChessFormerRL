@@ -5,7 +5,7 @@ from chesstools.tools import (PADDING_LM_ID, get_all_encoded_pieces_and_colors,
                               get_index)
 
 
-def prepare_input_for_batch(inference_data_list, device='cpu'):
+def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True):
     """generates input for training from previously generated data
 
     Args:
@@ -26,8 +26,13 @@ def prepare_input_for_batch(inference_data_list, device='cpu'):
     
     attention_mask = make_attention_mask(starting_points_padded).to(device)
     
-    targets = t.tensor([inf_data['target'] for inf_data in inference_data_list], device=device)
-    targets_idx = t.tensor([inf_data['target_idx'] for inf_data in inference_data_list], device=device)
+    if with_target:
+        targets = t.tensor([inf_data['target'] for inf_data in inference_data_list], device=device)
+        targets_idx = t.tensor([inf_data['target_idx'] for inf_data in inference_data_list], device=device)
+        
+    else:
+        targets = None
+        targets_idx = None
     
     target_mask = (starting_points_padded == PADDING_LM_ID).to(device)
     

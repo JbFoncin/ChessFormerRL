@@ -52,7 +52,7 @@ class DQNTrainer:
                                  model_device=model_device)
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
 
-    def update_action_data_buffer(self, q_hat_max, model_inputs, current_action, current_reward):
+    def update_action_data_buffer(self, model_inputs, current_action, current_reward):
         """
         updates previous state target with the maximum q_hat value
 
@@ -61,28 +61,14 @@ class DQNTrainer:
             model_inputs (dict[str, torch.tensor]): model inputs
             reward (float): reward associated with current state encoded in model inputs and current action
         """
+        move_data_to_device(model_inputs, 'cpu')
+            
         if self.previous_action_data is not None:
 
-            self.previous_action_data['target'] += q_hat_max
+            self.previous_action_data['q_hat_input'] = model_inputs
             self.buffer.append(self.previous_action_data)
-            
-        move_data_to_device(model_inputs, 'cpu')
 
-        self.previous_action_data = {**model_inputs, 'target': current_reward, 'target_idx': current_action}
-
-    def get_q_hat_max(self, board):
-        """
-        Args:
-            board (chess.Board): the current game
-
-        Returns:
-            float: the q_hat_max_value
-        """
-        data_inference = prepare_for_model_inference(board, self.agent.color_map, device=self.model_device)
-        q_hat_values = self.frozen_model(**data_inference)
-        q_hat_max = q_hat_values.max().item()
-
-        return q_hat_max
+        self.previous_action_data = {**model_inputs, 'reward': current_reward, 'target_idx': current_action}
 
     def _set_frozen_model(self, model):
         """
@@ -138,8 +124,6 @@ class DQNTrainer:
             bool: True if game is finished
         """
 
-        q_hat_max = self.get_q_hat_max(board)
-
         #agent plays
         action, action_idx, inference_data = self.agent.choose_action(board)
 
@@ -155,8 +139,7 @@ class DQNTrainer:
 
             reward += endgame_reward
             
-
-            self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
+            self.update_action_data_buffer(inference_data, action_idx, reward)
 
             self.clean_previous_action_data()
 
@@ -179,13 +162,13 @@ class DQNTrainer:
             else:
                 reward -= endgame_reward
 
-            self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
+            self.update_action_data_buffer(inference_data, action_idx, reward)
 
             self.clean_previous_action_data()
 
             return reward, board, False
 
-        self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
+        self.update_action_data_buffer(inference_data, action_idx, reward)
 
         return reward, board, True
 
@@ -226,8 +209,7 @@ class DQNTrainer:
         """
         self.optimizer.zero_grad()
 
-        sample = choices(self.buffer, k=self.batch_size)
-        batch = prepare_input_for_batch(sample, device=self.model_device)
+        batch = self.make_training_batch()
 
         model_output = self.model(**batch['model_inputs'])
 
@@ -241,3 +223,38 @@ class DQNTrainer:
         self.optimizer.step()
 
         return loss.cpu().detach().item()
+    
+    def make_training_batch(self):
+        """
+        """
+        inference_data_list = choices(self.buffer, k=self.batch_size)
+        
+        need_update, others = [], []
+        
+        for data in inference_data_list:
+            if 'q_hat_input' in data:
+                need_update.append(data)
+            else:
+                others.append(data)
+                
+        q_hat_batch = prepare_input_for_batch(need_update, device=self.model_device, with_target=False)
+        
+        max_q_hat, _ = self.frozen_model(**q_hat_batch['model_inputs']).max(1)
+        
+        max_q_hat = max_q_hat.to('cpu').detach()
+        
+        for i, data in enumerate(need_update):
+            data['target'] = max_q_hat[i].item() + data['reward']
+            
+        for data in others:
+            data['target'] = data['reward']
+        
+        batch_data = need_update + others
+        
+        batch = prepare_input_for_batch(batch_data, self.model_device)
+        
+        return batch
+        
+        
+        
+    
