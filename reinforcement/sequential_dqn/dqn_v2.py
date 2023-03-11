@@ -6,27 +6,25 @@ from collections import deque
 from copy import deepcopy
 from random import choices, shuffle
 
-from scipy.special import softmax
 import torch as t
 from chess import Board
+from scipy.special import softmax
 from torch import nn
-from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
-from modeling.tools import (prepare_for_model_inference,
-                            prepare_input_for_batch,
-                            move_data_to_device)
+from modeling.tools import move_data_to_device, prepare_input_for_batch
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
 class DQNTrainer:
     """
-    Vanilla DQN
+    double DQN with multi-step reward and importance sampling
     """
     def __init__(self, model_1, model_2, optimizer_1, optimizer_2, buffer_size,
                  revert_models_nb_steps, competitor, batch_size, experiment_name,
-                 models_device, nb_steps_reward):
+                 models_device, nb_steps_reward, epsilon_sampling):
         """
         Args:
             model_1 (t.nn.Module): The first DQN model
@@ -50,7 +48,8 @@ class DQNTrainer:
         self.nb_steps_reward = nb_steps_reward
 
         self.buffer = deque(maxlen=buffer_size)
-        self.sampling_score = deque(maxlen=buffer_size)
+        self.sampling_scores = deque(maxlen=buffer_size)
+        self.epsilon_sampling = epsilon_sampling
 
         self.previous_actions_data = []
 
@@ -144,9 +143,6 @@ class DQNTrainer:
             chess.Board: the current game
             bool: True if game is finished
         """
-
-        q_hat_max = self.get_q_hat_max(board)
-
         #agent plays
         action, action_idx, inference_data = self.agent.choose_action(board)
 
@@ -162,8 +158,7 @@ class DQNTrainer:
 
             reward += endgame_reward
 
-
-            self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
+            self.update_action_data_buffer(inference_data, action_idx, reward)
 
             self.clean_previous_actions_data()
 
@@ -186,13 +181,13 @@ class DQNTrainer:
             else:
                 reward -= endgame_reward
 
-            self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
+            self.update_action_data_buffer(inference_data, action_idx, reward)
 
             self.clean_previous_actions_data()
 
             return reward, board, False
 
-        self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
+        self.update_action_data_buffer(inference_data, action_idx, reward)
 
         return reward, board, True
 
@@ -224,7 +219,7 @@ class DQNTrainer:
                     self.summary_writer.add_scalar('MSE', loss, step)
 
                 if step % self.update_target_q_step == 0:
-                    self._set_frozen_model(self.model)
+                    self._revert_models_and_optimizers()
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
 
@@ -233,23 +228,28 @@ class DQNTrainer:
         samples and train one batch
 
         Returns:
-            _type_: _description_
+            float: loss value on the current batch
         """
-        self.optimizer.zero_grad()
+        self.optimizer_1.zero_grad()
 
         sample = choices(self.buffer, k=self.batch_size)
-        batch = prepare_input_for_batch(sample, device=self.model_device)
+        batch, data_indexes = prepare_input_for_batch(sample, device=self.models_device)
 
-        model_output = self.model(**batch['model_inputs'])
+        model_output = self.model_1(**batch['model_inputs'])
 
         predicted = t.gather(model_output, dim=1,
                              index=batch['targets']['targets_idx'].unsqueeze(1))
 
         loss = self.loss_criterion(predicted.squeeze(-1), batch['targets']['targets'])
 
+        new_sampling_scores = t.abs(predicted.detach().cpu() - batch['targets']['targets'].cpu()) + self.epsilon_sampling
+
+        for index, value in zip(data_indexes, new_sampling_scores):
+            self.sampling_scores[index] = value.item()
+
         loss.backward()
 
-        self.optimizer.step()
+        self.optimizer_1.step()
 
         return loss.cpu().detach().item()
 
@@ -259,20 +259,29 @@ class DQNTrainer:
 
         Returns:
             dict[str, torch.Tensor]: model inputs and target
+            list[int]: indexes of sampled data in buffer. Used to update the
+                       prioritized buffer sampling probas.
         """
-        sampling_probas =
+        sampling_probas = softmax(self.sampling_scores)
+        indexes = list(range(len(self.buffer)))
 
-        inference_data_list = choices(self.buffer, k=self.batch_size)
+        batch_data_indexes = choices(indexes,
+                                     k=self.batch_size,
+                                     weights=sampling_probas)
+        batch_data_list = [self.buffer[i] for i in batch_data_indexes]
 
         need_update, others = [], []
+        need_update_indexes, other_indexes = [], []
 
-        for data in inference_data_list:
+        for index, data in zip(batch_data_indexes, batch_data_list):
             if 'q_hat_input' in data:
                 need_update.append(data)
+                need_update_indexes.append(index)
             else:
                 others.append(data)
+                other_indexes.append(index)
 
-        q_hat_batch = prepare_input_for_batch(need_update, device=self.model_device, with_target=False)
+        q_hat_batch = prepare_input_for_batch(need_update, device=self.models_device, with_target=False)
 
         max_q_hat, _ = self.model_2(**q_hat_batch['model_inputs']).max(1)
 
@@ -285,7 +294,8 @@ class DQNTrainer:
             data['target'] = data['reward']
 
         batch_data = need_update + others
+        data_indexes = need_update_indexes + other_indexes
 
-        batch = prepare_input_for_batch(batch_data, self.model_device)
+        batch = prepare_input_for_batch(batch_data, self.models_device)
 
-        return batch
+        return batch, data_indexes
