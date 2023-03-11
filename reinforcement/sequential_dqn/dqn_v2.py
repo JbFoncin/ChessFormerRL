@@ -1,19 +1,20 @@
 """
-Here we try a sequential learning method.
-The trainer trains a first model, used to train a better one and so on
+We continue over the sequential training, but we add multi-step reward, importance
+sampling and double dqn
 """
 from collections import deque
 from copy import deepcopy
 from random import choices, shuffle
 
+from scipy.special import softmax
 import torch as t
 from chess import Board
 from torch import nn
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
 
-from modeling.tools import (prepare_for_model_inference, 
-                            prepare_input_for_batch, 
+from modeling.tools import (prepare_for_model_inference,
+                            prepare_input_for_batch,
                             move_data_to_device)
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
@@ -29,12 +30,12 @@ class DQNTrainer:
         """
         Args:
             model_1 (t.nn.Module): The first DQN model
-            model_2 (t.nn.Module): The second DQN model   
+            model_2 (t.nn.Module): The second DQN model
             optimizer_1 (t.optim.Optimizer): optimizer of model_1
-            optimizer_2 (t.optim.Optimizer): optimizer of model_2      
+            optimizer_2 (t.optim.Optimizer): optimizer of model_2
             buffer_size (int): maximum history len
             revert_models_nb_steps: nb steps between models switching
-            competitor (reinforcement.players.PlayerABC derived classes)   
+            competitor (reinforcement.players.PlayerABC derived classes)
             batch_size (int): number of elements per batch when training
             experiment_name (str): name of the tensorboard run
             models_device (str): device used for models
@@ -49,16 +50,19 @@ class DQNTrainer:
         self.nb_steps_reward = nb_steps_reward
 
         self.buffer = deque(maxlen=buffer_size)
+        self.sampling_score = deque(maxlen=buffer_size)
 
         self.previous_actions_data = []
 
         self.competitor = competitor
+
         self.agent = ModelPlayer(model=self.model_1,
                                  random_action_rate=0.0,
                                  model_device=models_device)
+
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
 
-    def update_action_data_buffer(self, q_hat_max, model_inputs, current_action, current_reward):
+    def update_action_data_buffer(self, model_inputs, current_action_index, current_reward):
         """
         updates previous state target with the maximum q_hat value
 
@@ -67,33 +71,21 @@ class DQNTrainer:
             model_inputs (dict[str, torch.tensor]): model inputs
             reward (float): reward associated with current state encoded in model inputs and current action
         """
-        
+
+        move_data_to_device(model_inputs, 'cpu')
+
         if len(self.previous_actions_data) == self.nb_steps_reward:
             to_buffer = self.previous_actions_data.pop(0)
-            to_buffer['target'] += q_hat_max
+            to_buffer['q_hat_input'] = model_inputs
             self.buffer.append(to_buffer)
-            
+
         for element in self.previous_actions_data:
-            element['target'] += current_reward
-            
-        move_data_to_device(model_inputs, 'cpu')
-            
-        self.previous_actions_data.append({**model_inputs, 'target': current_reward, 'target_idx': current_action})
+            element['reward'] += current_reward
 
+        self.previous_actions_data.append({**model_inputs,
+                                           'reward': current_reward,
+                                           'target_idx': current_action_index})
 
-    def get_q_hat_max(self, board):
-        """
-        Args:
-            board (chess.Board): the current game
-
-        Returns:
-            float: the q_hat_max_value
-        """
-        data_inference = prepare_for_model_inference(board, self.agent.color_map, device=self.models_device)
-        q_hat_values = self.model_2(**data_inference)
-        q_hat_max = q_hat_values.max().item()
-
-        return q_hat_max
 
     def _revert_models_and_optimizers(self):
         """
@@ -169,7 +161,7 @@ class DQNTrainer:
         if endgame_reward is not None: #finish game
 
             reward += endgame_reward
-            
+
 
             self.update_action_data_buffer(q_hat_max, inference_data, action_idx, reward)
 
@@ -210,7 +202,7 @@ class DQNTrainer:
             num_games (int):
         """
         step = 0
-        
+
         for epoch in tqdm(range(num_games)):
 
             game_reward = 0
@@ -222,11 +214,15 @@ class DQNTrainer:
             while game_continues:
 
                 step += 1
+
                 reward, board, game_continues = self.generate_sample(board)
+
                 game_reward += reward
+
                 if len(self.buffer) > self.batch_size:
                     loss = self.train_batch()
                     self.summary_writer.add_scalar('MSE', loss, step)
+
                 if step % self.update_target_q_step == 0:
                     self._set_frozen_model(self.model)
 
@@ -256,3 +252,40 @@ class DQNTrainer:
         self.optimizer.step()
 
         return loss.cpu().detach().item()
+
+    def make_training_batch(self):
+        """
+        creates batch for training
+
+        Returns:
+            dict[str, torch.Tensor]: model inputs and target
+        """
+        sampling_probas =
+
+        inference_data_list = choices(self.buffer, k=self.batch_size)
+
+        need_update, others = [], []
+
+        for data in inference_data_list:
+            if 'q_hat_input' in data:
+                need_update.append(data)
+            else:
+                others.append(data)
+
+        q_hat_batch = prepare_input_for_batch(need_update, device=self.model_device, with_target=False)
+
+        max_q_hat, _ = self.model_2(**q_hat_batch['model_inputs']).max(1)
+
+        max_q_hat = max_q_hat.to('cpu').detach()
+
+        for i, data in enumerate(need_update):
+            data['target'] = max_q_hat[i].item() + data['reward']
+
+        for data in others:
+            data['target'] = data['reward']
+
+        batch_data = need_update + others
+
+        batch = prepare_input_for_batch(batch_data, self.model_device)
+
+        return batch
