@@ -12,8 +12,8 @@ from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from modeling.tools import (prepare_for_model_inference, 
-                            prepare_input_for_batch, 
+from modeling.tools import (prepare_for_model_inference,
+                            prepare_input_for_batch,
                             move_data_to_device)
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
@@ -62,7 +62,7 @@ class DQNTrainer:
             reward (float): reward associated with current state encoded in model inputs and current action
         """
         move_data_to_device(model_inputs, 'cpu')
-            
+
         if self.previous_action_data is not None:
 
             self.previous_action_data['q_hat_input'] = model_inputs
@@ -138,7 +138,7 @@ class DQNTrainer:
         if endgame_reward is not None: #finish game
 
             reward += endgame_reward
-            
+
             self.update_action_data_buffer(inference_data, action_idx, reward)
 
             self.clean_previous_action_data()
@@ -175,10 +175,10 @@ class DQNTrainer:
     def train(self, num_games):
         """
         Args:
-            num_games (int):
+            num_games (int): number of games to train on
         """
         step = 0
-        
+
         for epoch in tqdm(range(num_games)):
 
             game_reward = 0
@@ -205,7 +205,7 @@ class DQNTrainer:
         samples and train one batch
 
         Returns:
-            _type_: _description_
+            float: computed loss over the sampled data
         """
         self.optimizer.zero_grad()
 
@@ -223,38 +223,41 @@ class DQNTrainer:
         self.optimizer.step()
 
         return loss.cpu().detach().item()
-    
+
     def make_training_batch(self):
         """
+        creates batch for training
+
+        Returns:
+            dict[str, torch.Tensor]: model inputs and target
         """
         inference_data_list = choices(self.buffer, k=self.batch_size)
-        
+
         need_update, others = [], []
-        
+
         for data in inference_data_list:
             if 'q_hat_input' in data:
                 need_update.append(data)
             else:
                 others.append(data)
-                
+
         q_hat_batch = prepare_input_for_batch(need_update, device=self.model_device, with_target=False)
-        
+
         max_q_hat, _ = self.frozen_model(**q_hat_batch['model_inputs']).max(1)
-        
+
         max_q_hat = max_q_hat.to('cpu').detach()
-        
+
         for i, data in enumerate(need_update):
             data['target'] = max_q_hat[i].item() + data['reward']
-            
+
         for data in others:
             data['target'] = data['reward']
-        
+
         batch_data = need_update + others
-        
+
         batch = prepare_input_for_batch(batch_data, self.model_device)
-        
+
         return batch
-        
-        
-        
-    
+
+
+
