@@ -12,9 +12,7 @@ from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from modeling.tools import (prepare_for_model_inference,
-                            prepare_input_for_batch,
-                            move_data_to_device)
+from modeling.tools import move_data_to_device, prepare_input_for_batch
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
@@ -32,6 +30,8 @@ class DQNTrainer:
             random_action_rate (float): rate of random decisions
             buffer_size (int): maximum history len
             update_target_q_step: number of step between q_hat network updates
+            competitor (players.PlayerABC): an instance of a derived class of PlayerABC
+            model_device(str): device to be used for target inference and training
         """
         self.model = model
         self.model_device = model_device
@@ -68,7 +68,9 @@ class DQNTrainer:
             self.previous_action_data['q_hat_input'] = model_inputs
             self.buffer.append(self.previous_action_data)
 
-        self.previous_action_data = {**model_inputs, 'reward': current_reward, 'target_idx': current_action}
+        self.previous_action_data = {**model_inputs,
+                                     'reward': current_reward,
+                                     'target_idx': current_action}
 
     def _set_frozen_model(self, model):
         """
