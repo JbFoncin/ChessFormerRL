@@ -194,9 +194,11 @@ class DQNTrainer:
                 step += 1
                 reward, board, game_continues = self.generate_sample(board)
                 game_reward += reward
+
                 if len(self.buffer) > self.batch_size:
                     loss = self.train_batch()
                     self.summary_writer.add_scalar('MSE', loss, step)
+
                 if step % self.update_target_q_step == 0:
                     self._set_frozen_model(self.model)
 
