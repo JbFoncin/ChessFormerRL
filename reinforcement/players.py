@@ -13,7 +13,7 @@ class PlayerABC(ABC):
     def __init__(self, *args, **kwargs):
         self.color_map = None
         self.color = None
-    
+
     def choose_random_action(self, board):
         """
         Args:
@@ -27,7 +27,7 @@ class PlayerABC(ABC):
         actions = self.get_possible_actions(board)
         action_index = int(random() * len(actions))
         return actions[action_index], action_index, None
-        
+
     @staticmethod
     def get_possible_actions(board):
         """
@@ -38,7 +38,7 @@ class PlayerABC(ABC):
             list[str]: list of possible actions, like 'e2e4'
         """
         return [str(move) for move in board.legal_moves]
-    
+
     def set_color(self, color):
         """set player color
 
@@ -56,7 +56,7 @@ class PlayerABC(ABC):
 class DummyPlayer(PlayerABC):
     """
     Always plays randomly
-    """       
+    """
     def choose_action(self, board):
         """
         Args:
@@ -66,7 +66,7 @@ class DummyPlayer(PlayerABC):
             int: action index
         """
         return self.choose_random_action(board)
-    
+
 
 class ModelPlayer(PlayerABC):
     def __init__(self, model, random_action_rate, model_device):
@@ -74,10 +74,10 @@ class ModelPlayer(PlayerABC):
         Args:
             color (str): 'b' for black or 'w' for white
             model (nn.Module): the policy
-            
+
         """
         super().__init__()
-        
+
         self.model = model
         self.random_action_rate = random_action_rate
         self.model_device = model_device
@@ -93,21 +93,21 @@ class ModelPlayer(PlayerABC):
             inference data: dict of tensor to be stored in the replay buffer
         """
         if random() < self.random_action_rate:
-            
-            return self.choose_random_action(board)        
-        
+
+            return self.choose_random_action(board)
+
         possible_actions = self.get_possible_actions(board)
-                            
+
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
-        
+
         actions_scores = self.model(**inference_data)
-        
+
         actions_scores = actions_scores.squeeze(1)
-        
+
         chosen_action_index = t.argmax(actions_scores).cpu().item()
-        
+
         return possible_actions[chosen_action_index], chosen_action_index, inference_data
-    
+
     def choose_random_action(self, board):
         """
         Args:
@@ -119,7 +119,7 @@ class ModelPlayer(PlayerABC):
             inference data: dict of tensor to be stored in the replay buffer
         """
         action, chosen_action_index, _ = super().choose_random_action(board)
-        
+
         inference_data = prepare_for_model_inference(board, self.color_map)
-        
+
         return action, chosen_action_index, inference_data

@@ -31,6 +31,7 @@ class DQNTrainer:
             buffer_size (int): maximum history len
             update_target_q_step: number of step between q_hat network updates
             competitor (players.PlayerABC): an instance of a derived class of PlayerABC
+            experiment_name (str): name of the experiment, used for tensorboard
             model_device(str): device to be used for target inference and training
         """
         self.model = model
@@ -43,13 +44,14 @@ class DQNTrainer:
         self.update_target_q_step = update_target_q_step
 
         self.buffer = deque(maxlen=buffer_size)
-
         self.previous_action_data = None
 
         self.competitor = competitor
+        
         self.agent = ModelPlayer(model=self.model,
                                  random_action_rate=random_action_rate,
                                  model_device=model_device)
+        
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
 
     def update_action_data_buffer(self, model_inputs, current_action, current_reward):
@@ -58,8 +60,8 @@ class DQNTrainer:
 
         Args:
             q_hat_max (float): _description_
-            model_inputs (dict[str, torch.tensor]): model inputs
-            reward (float): reward associated with current state encoded in model inputs and current action
+            model_inputs (dict[str, torch.Tensor]): model inputs
+            reward (float): reward associated with current state and action
         """
         move_data_to_device(model_inputs, 'cpu')
 
@@ -74,7 +76,7 @@ class DQNTrainer:
 
     def _set_frozen_model(self, model):
         """
-        Set or update q_hat
+        Set or update q_hat model
 
         Args:
             model (torch.nn.Module): a q model
@@ -133,7 +135,7 @@ class DQNTrainer:
 
         board.push_san(action)
 
-        # Chech if competitor can play and get reward
+        # Check if competitor can play and get reward
 
         endgame_reward, _ = get_endgame_reward(board, self.competitor.color)
 
@@ -245,7 +247,9 @@ class DQNTrainer:
             else:
                 others.append(data)
 
-        q_hat_batch = prepare_input_for_batch(need_update, device=self.model_device, with_target=False)
+        q_hat_batch = prepare_input_for_batch(need_update,
+                                              device=self.model_device,
+                                              with_target=False)
 
         max_q_hat, _ = self.frozen_model(**q_hat_batch['model_inputs']).max(1)
 
@@ -262,6 +266,3 @@ class DQNTrainer:
         batch = prepare_input_for_batch(batch_data, self.model_device)
 
         return batch
-
-
-

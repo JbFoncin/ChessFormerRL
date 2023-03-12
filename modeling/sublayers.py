@@ -6,7 +6,7 @@ from torch import nn
 
 class ResidualMultiHeadAttention(nn.Module):
     """
-    simple attention head, basic implementation. 
+    simple attention head, basic implementation.
     WARNING: THE INPUT HAS TO BE NORMALIZED BEFORE
     """
     def __init__(self, nb_head, dim_per_head, embedding_dim, dropout=0.1):
@@ -17,7 +17,7 @@ class ResidualMultiHeadAttention(nn.Module):
             embedding_dim (int): hidden size of the model
         """
         super().__init__()
-        
+
         self.nb_head = nb_head
         self.dim_per_head = dim_per_head
         self.embedding_dim = embedding_dim
@@ -27,7 +27,7 @@ class ResidualMultiHeadAttention(nn.Module):
         self.output = nn.Linear(dim_per_head * nb_head, embedding_dim, bias=False)
         self.softmax = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(p=dropout)
-        
+
     def forward(self, hidden_state_query, hidden_state_key, hidden_state_value, attention_mask=None):
         """
         Args:
@@ -39,38 +39,38 @@ class ResidualMultiHeadAttention(nn.Module):
         Returns:
             torch.tensor: hidden state for the next layer
         """
-        query = self.query_projector(hidden_state_query) 
+        query = self.query_projector(hidden_state_query)
         key = self.key_projector(hidden_state_key)
         value = self.value_projector(hidden_state_value)
-        
+
         bs = query.size(0)
         seq_len_q = query.size(1)
         seq_len_k = key.size(1)
-        
+
         query  = query.view(bs, seq_len_q, self.nb_head, self.dim_per_head).transpose(1, 2)
         key = key.view(bs, seq_len_k, self.nb_head, self.dim_per_head).transpose(1, 2)
         value = value.view(bs, seq_len_k, self.nb_head, self.dim_per_head).transpose(1, 2)
-        
+
         attn_scores = query @ key.transpose(-1, -2) / sqrt(self.dim_per_head)
-        
+
         attn = self.softmax(attn_scores)
-        
+
         if attention_mask is not None:
             attention_mask_unsqueezed = attention_mask.unsqueeze(1)
             mask_all_heads = t.repeat_interleave(attention_mask_unsqueezed, self.nb_head, dim=1)
             attn = attn.masked_fill(mask_all_heads, 0.0)
-            
+
         attn = self.dropout(attn)
-            
+
         attn_product = attn @ value
-        
+
         attn_product = attn_product.transpose(1, 2).contiguous().view(bs, seq_len_q, -1)
-        
+
         attn_applied = self.output(attn_product)
-        
+
         return attn_applied + hidden_state_query
-    
-    
+
+
 class BottleNeck(nn.Module):
     """
     basic bottleneck module
@@ -82,9 +82,9 @@ class BottleNeck(nn.Module):
             hidden_dim (int): internal dim of the bottleneck
         """
         super().__init__()
-        
-        self.w_1 = nn.Linear(embedding_dim, hidden_dim) 
-        self.w_2 = nn.Linear(hidden_dim, embedding_dim) 
+
+        self.w_1 = nn.Linear(embedding_dim, hidden_dim)
+        self.w_2 = nn.Linear(hidden_dim, embedding_dim)
         self.activation = nn.GELU()
         self.dropout = nn.Dropout(p=dropout)
 
@@ -98,7 +98,4 @@ class BottleNeck(nn.Module):
         """
         out = self.w_2(self.activation(self.w_1(input_)))
         out = self.dropout(out)
-        return out + input_     
-        
-        
-        
+        return out + input_
