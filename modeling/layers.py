@@ -128,6 +128,7 @@ class ActionDecoderLayer(nn.Module):
             nb_head (int): number of attention heads
             dim_per_head (int): hidden size per head
             bottleneck_intermediate_dim (int): intermediate size in bottleneck
+            dropout (float): the dropout regularization rate
         """
         super().__init__()
 

@@ -3,7 +3,6 @@ We continue over the sequential training, but we add multi-step reward, importan
 sampling and double dqn
 """
 from collections import deque
-from copy import deepcopy
 from random import choices, shuffle
 
 import torch as t
@@ -66,9 +65,9 @@ class DQNTrainer:
         updates previous state target with the maximum q_hat value
 
         Args:
-            q_hat_max (float): _description_
             model_inputs (dict[str, torch.tensor]): model inputs
-            reward (float): reward associated with current state encoded in model inputs and current action
+            current_action_index (int): index of chosen action
+            reward (float): reward associated with current state and current action
         """
 
         move_data_to_device(model_inputs, 'cpu')
@@ -84,7 +83,6 @@ class DQNTrainer:
         self.previous_actions_data.append({**model_inputs,
                                            'reward': current_reward,
                                            'target_idx': current_action_index})
-
 
     def _revert_models_and_optimizers(self):
         """
@@ -218,7 +216,7 @@ class DQNTrainer:
                     loss = self.train_batch()
                     self.summary_writer.add_scalar('MSE', loss, step)
 
-                if step % self.update_target_q_step == 0:
+                if step % self.revert_models_nb_steps == 0:
                     self._revert_models_and_optimizers()
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
@@ -270,18 +268,25 @@ class DQNTrainer:
                                      weights=sampling_probas)
         batch_data_list = [self.buffer[i] for i in batch_data_indexes]
 
+        # When we separate the data needing update and the other we loose index position
+        # and therefore cannot update the priority buffer.
+
         need_update, others = [], []
         need_update_indexes, other_indexes = [], []
 
         for index, data in zip(batch_data_indexes, batch_data_list):
+
             if 'q_hat_input' in data:
                 need_update.append(data)
                 need_update_indexes.append(index)
+
             else:
                 others.append(data)
                 other_indexes.append(index)
 
-        q_hat_batch = prepare_input_for_batch(need_update, device=self.models_device, with_target=False)
+        q_hat_batch = prepare_input_for_batch(need_update,
+                                              device=self.models_device,
+                                              with_target=False)
 
         max_q_hat, _ = self.model_2(**q_hat_batch['model_inputs']).max(1)
 
