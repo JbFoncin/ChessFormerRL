@@ -11,13 +11,14 @@ from scipy.special import softmax
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from copy import deepcopy
 
 from modeling.tools import move_data_to_device, prepare_input_for_batch
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
-class DQNTrainer:
+class DQNTrainerV2:
     """
     double DQN with multi-step reward and importance sampling
     """
@@ -60,7 +61,11 @@ class DQNTrainer:
 
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
 
-    def update_action_data_buffer(self, model_inputs, current_action_index, current_reward):
+    def update_action_data_buffer(self,
+                                  model_inputs,
+                                  current_action_index,
+                                  estimated_action_value,
+                                  current_reward):
         """
         updates previous state target with the maximum q_hat value
 
@@ -76,13 +81,31 @@ class DQNTrainer:
             to_buffer = self.previous_actions_data.pop(0)
             to_buffer['q_hat_input'] = model_inputs
             self.buffer.append(to_buffer)
+            model_input_copy = deepcopy(model_inputs)
+            move_data_to_device(model_input_copy, self.models_device)
+            q_hat_max = self.model_2(**model_input_copy).max().cpu().item()
+            sampling_score = abs(to_buffer['estimated_action_value'] - to_buffer['reward'] - q_hat_max)
+            self.sampling_scores.append(sampling_score)
 
         for element in self.previous_actions_data:
             element['reward'] += current_reward
 
         self.previous_actions_data.append({**model_inputs,
                                            'reward': current_reward,
-                                           'target_idx': current_action_index})
+                                           'target_idx': current_action_index,
+                                           'estimated_action_value': estimated_action_value})
+
+    def clean_previous_actions_data(self):
+        """
+        called when episode is finished to avoid adding max q_hat
+        to the final reward of the previous game
+        """
+        for element in self.previous_actions_data:
+            sampling_score = abs(element['estimated_action_value'] - element['reward']) + self.epsilon_sampling
+            self.sampling_scores.append(sampling_score)
+        
+        self.buffer.extend(self.previous_actions_data)
+        self.previous_actions_data = []
 
     def _revert_models_and_optimizers(self):
         """
@@ -117,18 +140,11 @@ class DQNTrainer:
 
         if self.competitor.color: #if competitor plays first
 
-            action, _, _ = self.competitor.choose_action(board)
-            board.push_san(action)
+            competitor_output = self.competitor.choose_action(board)
+            board.push_san(competitor_output.action)
 
         return board
 
-    def clean_previous_actions_data(self):
-        """
-        called when episode is finished to avoid adding max q_hat
-        to the final reward of the previous game
-        """
-        self.buffer.extend(self.previous_actions_data)
-        self.previous_actions_data = []
 
     def generate_sample(self, board):
         """
@@ -142,11 +158,11 @@ class DQNTrainer:
             bool: True if game is finished
         """
         #agent plays
-        action, action_idx, inference_data = self.agent.choose_action(board)
+        player_output = self.agent.choose_action(board)
 
-        reward = get_move_reward(board, action)
+        reward = get_move_reward(board, player_output.action)
 
-        board.push_san(action)
+        board.push_san(player_output.action)
 
         # Chech if competitor can play and get reward
 
@@ -156,17 +172,20 @@ class DQNTrainer:
 
             reward += endgame_reward
 
-            self.update_action_data_buffer(inference_data, action_idx, reward)
+            self.update_action_data_buffer(player_output.inference_data,
+                                           player_output.action_index,
+                                           player_output.estimated_action_value,
+                                           reward)
 
             self.clean_previous_actions_data()
 
             return reward, board, False
 
-        competitor_action, _, _ = self.competitor.choose_action(board)
+        competitor_output = self.competitor.choose_action(board)
 
-        reward -= get_move_reward(board, competitor_action)
+        reward -= get_move_reward(board, competitor_output.action)
 
-        board.push_san(competitor_action)
+        board.push_san(competitor_output.action)
 
         # check if the game is finished after competitor's action
 
@@ -179,13 +198,19 @@ class DQNTrainer:
             else:
                 reward -= endgame_reward
 
-            self.update_action_data_buffer(inference_data, action_idx, reward)
+            self.update_action_data_buffer(player_output.inference_data,
+                                           player_output.action_index,
+                                           player_output.estimated_action_value,
+                                           reward)
 
             self.clean_previous_actions_data()
 
             return reward, board, False
 
-        self.update_action_data_buffer(inference_data, action_idx, reward)
+        self.update_action_data_buffer(player_output.inference_data,
+                                       player_output.action_index,
+                                       player_output.estimated_action_value,
+                                       reward)
 
         return reward, board, True
 
@@ -230,8 +255,7 @@ class DQNTrainer:
         """
         self.optimizer_1.zero_grad()
 
-        sample = choices(self.buffer, k=self.batch_size)
-        batch, data_indexes = prepare_input_for_batch(sample, device=self.models_device)
+        batch, sample_indexes = self.make_training_batch()
 
         model_output = self.model_1(**batch['model_inputs'])
 
@@ -240,9 +264,9 @@ class DQNTrainer:
 
         loss = self.loss_criterion(predicted.squeeze(-1), batch['targets']['targets'])
 
-        new_sampling_scores = t.abs(predicted.detach().cpu() - batch['targets']['targets'].cpu()) + self.epsilon_sampling
+        new_sampling_scores = t.abs(predicted.detach().cpu().squeeze(1) - batch['targets']['targets'].cpu()) + self.epsilon_sampling
 
-        for index, value in zip(data_indexes, new_sampling_scores):
+        for index, value in zip(sample_indexes, new_sampling_scores):
             self.sampling_scores[index] = value.item()
 
         loss.backward()
@@ -288,12 +312,15 @@ class DQNTrainer:
                                               device=self.models_device,
                                               with_target=False)
 
-        max_q_hat, _ = self.model_2(**q_hat_batch['model_inputs']).max(1)
+        q_hat_output = self.model_2(**q_hat_batch['model_inputs']).detach()
 
-        max_q_hat = max_q_hat.to('cpu').detach()
+        q_hat_values = t.gather(q_hat_output,
+                                dim=1,
+                                index=q_hat_batch['targets']['targets_idx'].unsqueeze(1)).cpu()
+
 
         for i, data in enumerate(need_update):
-            data['target'] = max_q_hat[i].item() + data['reward']
+            data['target'] = q_hat_values[i].item() + data['reward']
 
         for data in others:
             data['target'] = data['reward']
