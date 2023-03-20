@@ -1,5 +1,6 @@
 from abc import ABC
-from random import choice, random
+from collections import namedtuple
+from random import random
 
 import torch as t
 from chess import BLACK, WHITE
@@ -8,6 +9,16 @@ from modeling.tools import prepare_for_model_inference
 
 WHITE_COLOR_MAPPING = {None: 0, 'w': 1, 'b': 2}
 BLACK_COLOR_MAPPING = {None: 0, 'b': 1, 'w': 2}
+
+PlayerOutput = namedtuple('PlayerOutput',
+                          field_names=['action',
+                                       'action_index',
+                                       'inference_data',
+                                       'estimated_action_value'],
+                          defaults=[None,
+                                    None,
+                                    None,
+                                    None])
 
 class PlayerABC(ABC):
     def __init__(self, *args, **kwargs):
@@ -20,13 +31,13 @@ class PlayerABC(ABC):
             board (chess.Board): the current game state
 
         Returns:
-            str: chosen action, like 'e2e4'
-            int: action index
-            None: the inference data
+            PlayerOutput
         """
         actions = self.get_possible_actions(board)
         action_index = int(random() * len(actions))
-        return actions[action_index], action_index, None
+        output = PlayerOutput(action=actions[action_index],
+                              action_index=action_index)
+        return output
 
     @staticmethod
     def get_possible_actions(board):
@@ -106,10 +117,15 @@ class ModelPlayer(PlayerABC):
         actions_scores = self.model(**inference_data)
 
         actions_scores = actions_scores.squeeze(1)
+        
+        chosen_action_value, chosen_action_index = actions_scores.cpu().topk(1)
+        
+        output = PlayerOutput(action=possible_actions[chosen_action_index],
+                              action_index=chosen_action_index.item(),
+                              estimated_action_value=chosen_action_value.item(),
+                              inference_data=inference_data)
 
-        chosen_action_index = t.argmax(actions_scores).cpu().item()
-
-        return possible_actions[chosen_action_index], chosen_action_index, inference_data
+        return output
 
     def choose_random_action(self, board):
         """
