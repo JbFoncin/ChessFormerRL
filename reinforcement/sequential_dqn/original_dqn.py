@@ -103,8 +103,8 @@ class DQNTrainer:
 
         if self.competitor.color: #if competitor plays first
 
-            action, _, _ = self.competitor.choose_action(board)
-            board.push_san(action)
+            competitor_output = self.competitor.choose_action(board)
+            board.push_san(competitor_output.action)
 
         return board
 
@@ -129,11 +129,11 @@ class DQNTrainer:
         """
 
         #agent plays
-        action, action_idx, inference_data = self.agent.choose_action(board)
+        player_output = self.agent.choose_action(board)
 
-        reward = get_move_reward(board, action)
+        reward = get_move_reward(board, player_output.action)
 
-        board.push_san(action)
+        board.push_san(player_output.action)
 
         # Check if competitor can play and get reward
 
@@ -143,17 +143,19 @@ class DQNTrainer:
 
             reward += endgame_reward
 
-            self.update_action_data_buffer(inference_data, action_idx, reward)
+            self.update_action_data_buffer(player_output.inference_data,
+                                           player_output.action_index,
+                                           reward)
 
             self.clean_previous_action_data()
 
             return reward, board, False
 
-        competitor_action, _, _ = self.competitor.choose_action(board)
+        competitor_output = self.competitor.choose_action(board)
 
-        reward -= get_move_reward(board, competitor_action)
+        reward -= get_move_reward(board, competitor_output.action)
 
-        board.push_san(competitor_action)
+        board.push_san(competitor_output.action)
 
         # check if the game is finished after competitor's action
 
@@ -166,13 +168,17 @@ class DQNTrainer:
             else:
                 reward -= endgame_reward
 
-            self.update_action_data_buffer(inference_data, action_idx, reward)
+            self.update_action_data_buffer(competitor_output.inference_data,
+                                           competitor_output.action_index, 
+                                           reward)
 
             self.clean_previous_action_data()
 
             return reward, board, False
 
-        self.update_action_data_buffer(inference_data, action_idx, reward)
+        self.update_action_data_buffer(competitor_output.inference_data,
+                                       competitor_output.action_index,
+                                       reward)
 
         return reward, board, True
 
