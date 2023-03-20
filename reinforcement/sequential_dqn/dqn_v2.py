@@ -3,7 +3,7 @@ We continue over the sequential training, but we add multi-step reward, importan
 sampling and double dqn
 """
 from collections import deque
-from random import choices, shuffle
+from random import choices, shuffle, random
 
 import torch as t
 from chess import Board
@@ -44,8 +44,9 @@ class DQNTrainerV2:
         self.batch_size = batch_size
         self.loss_criterion = nn.MSELoss().to(models_device)
 
-        self.revert_models_nb_steps = revert_models_nb_steps
         self.nb_steps_reward = nb_steps_reward
+        
+        self.revert_models_nb_steps = revert_models_nb_steps
 
         self.buffer = deque(maxlen=buffer_size)
         self.sampling_scores = deque(maxlen=buffer_size)
@@ -103,24 +104,23 @@ class DQNTrainerV2:
         for element in self.previous_actions_data:
             sampling_score = abs(element['estimated_action_value'] - element['reward']) + self.epsilon_sampling
             self.sampling_scores.append(sampling_score)
-        
+
         self.buffer.extend(self.previous_actions_data)
         self.previous_actions_data = []
 
-    def _revert_models_and_optimizers(self):
+    def _change_agent_model(self):
         """
         Set or update q_hat
 
         Args:
             model (torch.nn.Module): a q model
         """
-        self.model_1, self.model_2 = self.model_2, self.model_1
-        self.optimizer_1, self.optimizer_2 = self.optimizer_2, self.optimizer_1
-        self.model_1.train()
-        self.model_1.requires_grad_(True)
-        self.model_2.eval()
-        self.model_2.requires_grad_(False)
-        setattr(self.agent, 'model', self.model_1)
+        if self.agent.model is self.model_1:
+            setattr(self.agent, 'model', self.model_2)
+        else:
+            setattr(self.agent, 'model', self.model_1)
+
+        assert self.agent.model is self.model_1 or self.agent.model is self.model_2
 
     def init_game(self):
         """
@@ -242,7 +242,7 @@ class DQNTrainerV2:
                     self.summary_writer.add_scalar('MSE', loss, step)
 
                 if step % self.revert_models_nb_steps == 0:
-                    self._revert_models_and_optimizers()
+                    self._change_agent_model()
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
 
@@ -254,10 +254,20 @@ class DQNTrainerV2:
             float: loss value on the current batch
         """
         self.optimizer_1.zero_grad()
+        self.optimizer_2.zero_grad()
 
-        batch, sample_indexes = self.make_training_batch()
+        if random() > 0.5:
+            model = self.model_1
+            optimizer = self.optimizer_1
+            target_network = self.model_2
+        else:
+            model = self.model_2
+            optimizer = self.optimizer_2
+            target_network = self.model_1
 
-        model_output = self.model_1(**batch['model_inputs'])
+        batch, sample_indexes = self.make_training_batch(target_network=target_network)
+
+        model_output = model(**batch['model_inputs'])
 
         predicted = t.gather(model_output, dim=1,
                              index=batch['targets']['targets_idx'].unsqueeze(1))
@@ -271,11 +281,12 @@ class DQNTrainerV2:
 
         loss.backward()
 
-        self.optimizer_1.step()
+        optimizer.step()
 
         return loss.cpu().detach().item()
 
-    def make_training_batch(self):
+    @t.no_grad()
+    def make_training_batch(self, target_network):
         """
         creates batch for training
 
@@ -307,20 +318,22 @@ class DQNTrainerV2:
             else:
                 others.append(data)
                 other_indexes.append(index)
+                
+        if need_update:
 
-        q_hat_batch = prepare_input_for_batch(need_update,
-                                              device=self.models_device,
-                                              with_target=False)
+            q_hat_batch = prepare_input_for_batch(need_update,
+                                                device=self.models_device,
+                                                with_target=False)
 
-        q_hat_output = self.model_2(**q_hat_batch['model_inputs']).detach()
+            q_hat_output = target_network(**q_hat_batch['model_inputs']).detach()
 
-        q_hat_values = t.gather(q_hat_output,
-                                dim=1,
-                                index=q_hat_batch['targets']['targets_idx'].unsqueeze(1)).cpu()
+            q_hat_values = t.gather(q_hat_output,
+                                    dim=1,
+                                    index=q_hat_batch['targets']['targets_idx'].unsqueeze(1)).cpu()
 
 
-        for i, data in enumerate(need_update):
-            data['target'] = q_hat_values[i].item() + data['reward']
+            for i, data in enumerate(need_update):
+                data['target'] = q_hat_values[i].item() + data['reward']
 
         for data in others:
             data['target'] = data['reward']
