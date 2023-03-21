@@ -45,7 +45,7 @@ class DQNTrainerV2:
         self.loss_criterion = nn.MSELoss().to(models_device)
 
         self.nb_steps_reward = nb_steps_reward
-        
+
         self.revert_models_nb_steps = revert_models_nb_steps
 
         self.buffer = deque(maxlen=buffer_size)
@@ -62,6 +62,7 @@ class DQNTrainerV2:
 
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
 
+    @t.no_grad()
     def update_action_data_buffer(self,
                                   model_inputs,
                                   current_action_index,
@@ -79,13 +80,24 @@ class DQNTrainerV2:
         move_data_to_device(model_inputs, 'cpu')
 
         if len(self.previous_actions_data) == self.nb_steps_reward:
+
             to_buffer = self.previous_actions_data.pop(0)
             to_buffer['q_hat_input'] = model_inputs
+
             self.buffer.append(to_buffer)
+
             model_input_copy = deepcopy(model_inputs)
             move_data_to_device(model_input_copy, self.models_device)
-            q_hat_max = self.model_2(**model_input_copy).max().cpu().item()
-            sampling_score = abs(to_buffer['estimated_action_value'] - to_buffer['reward'] - q_hat_max)
+
+            model = self.model_2 if self.agent.model is self.model_1 else self.model_1
+            assert model is self.model_1 or model is self.model_2
+
+            q_hat = model(**model_input_copy).cpu()
+            idx = t.tensor(current_action_index).unsqueeze(0).unsqueeze(1)
+
+            q_hat_action = t.gather(q_hat, dim=1, index=idx).item()
+
+            sampling_score = abs(to_buffer['estimated_action_value'] - to_buffer['reward'] - q_hat_action)
             self.sampling_scores.append(sampling_score)
 
         for element in self.previous_actions_data:
@@ -176,7 +188,6 @@ class DQNTrainerV2:
                                            player_output.action_index,
                                            player_output.estimated_action_value,
                                            reward)
-
             self.clean_previous_actions_data()
 
             return reward, board, False
@@ -318,7 +329,7 @@ class DQNTrainerV2:
             else:
                 others.append(data)
                 other_indexes.append(index)
-                
+
         if need_update:
 
             q_hat_batch = prepare_input_for_batch(need_update,
