@@ -350,26 +350,26 @@ class DQNTrainerV2:
         batch = prepare_input_for_batch(batch_data, self.models_device)
 
         return batch, data_indexes
-    
+
     def sample_indexes(self):
         """
-        Behaves differently from choices as the same index can't be sampled 
+        Behaves differently from choices as the same index can't be sampled
         multiple time
-        
+
         Returns:
             list: list of sampled indexes
         """
         indexes = list(range(len(self.buffer)))
         sampled_indexes = []
-        sampling_scores = list(self.sampling_scores)
-        
+        sampling_scores = t.tensor(self.sampling_scores, device=self.models_device)
+
         for _ in range(self.batch_size):
-            sampling_probas = softmax(sampling_scores)
+            sampling_probas = t.nn.functional.softmax(sampling_scores).cpu().numpy()
             chosen_index = choices(indexes, weights=sampling_probas, k=1)[0]
             sampling_scores[chosen_index] = float('-inf')
             sampled_indexes.append(chosen_index)
-            
+
         return sampled_indexes
-            
+
 
 
