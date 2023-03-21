@@ -3,7 +3,7 @@ We continue over the sequential training, but we add multi-step reward, importan
 sampling and double dqn
 """
 from collections import deque
-from random import choices, shuffle, random
+from random import choices, shuffle, random, choice
 
 import torch as t
 from chess import Board
@@ -306,12 +306,7 @@ class DQNTrainerV2:
             list[int]: indexes of sampled data in buffer. Used to update the
                        prioritized buffer sampling probas.
         """
-        sampling_probas = softmax(self.sampling_scores)
-        indexes = list(range(len(self.buffer)))
-
-        batch_data_indexes = choices(indexes,
-                                     k=self.batch_size,
-                                     weights=sampling_probas)
+        batch_data_indexes = self.sample_indexes()
         batch_data_list = [self.buffer[i] for i in batch_data_indexes]
 
         # When we separate the data needing update and the other we loose index position
@@ -355,3 +350,26 @@ class DQNTrainerV2:
         batch = prepare_input_for_batch(batch_data, self.models_device)
 
         return batch, data_indexes
+    
+    def sample_indexes(self):
+        """
+        Behaves differently from choices as the same index can't be sampled 
+        multiple time
+        
+        Returns:
+            list: list of sampled indexes
+        """
+        indexes = list(range(len(self.buffer)))
+        sampled_indexes = []
+        sampling_scores = list(self.sampling_scores)
+        
+        for _ in range(self.batch_size):
+            sampling_probas = softmax(sampling_scores)
+            chosen_index = choices(indexes, weights=sampling_probas, k=1)[0]
+            sampling_scores[chosen_index] = float('-inf')
+            sampled_indexes.append(chosen_index)
+            
+        return sampled_indexes
+            
+
+
