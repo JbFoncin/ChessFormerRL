@@ -3,7 +3,6 @@ ENV TZ=Europe/Paris
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 USER root
 
-# Install OpenCV with Gstreamer support
 WORKDIR /usr/src
 RUN apt-get update
 RUN apt-get install -y git
