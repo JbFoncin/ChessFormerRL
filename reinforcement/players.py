@@ -117,9 +117,9 @@ class ModelPlayer(PlayerABC):
         actions_scores = self.model(**inference_data)
 
         actions_scores = actions_scores.squeeze(1)
-        
+
         chosen_action_value, chosen_action_index = actions_scores.cpu().topk(1)
-        
+
         output = PlayerOutput(action=possible_actions[chosen_action_index.item()],
                               action_index=chosen_action_index.item(),
                               estimated_action_value=chosen_action_value.item(),
