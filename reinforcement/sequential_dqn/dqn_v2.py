@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from modeling.tools import move_data_to_device, prepare_input_for_batch
-from reinforcement.players import ModelPlayer
+from reinforcement.players import DoubleModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
@@ -25,7 +25,7 @@ class DQNTrainerV2:
     """
     def __init__(self, model_1, model_2, optimizer_1, optimizer_2, buffer_size,
                  competitor, batch_size, experiment_name, models_device,
-                 nb_steps_reward, epsilon_sampling):
+                 nb_steps_reward, epsilon_sampling, warm_up_steps):
         """
         Args:
             model_1 (t.nn.Module): The first DQN model
@@ -46,20 +46,25 @@ class DQNTrainerV2:
         self.loss_criterion = nn.MSELoss().to(models_device)
 
         self.nb_steps_reward = nb_steps_reward
-
-        self.buffer = deque(maxlen=buffer_size)
+        #The buffer 1 is for actions taken by model 1 and idem for model 2
+        self.buffer_1 = deque(maxlen=buffer_size)
+        self.buffer_2 = deque(maxlen=buffer_size)
         self.buffer_size = buffer_size
         # To improve performance, we use as sampling score buffer a tensor on GPU
-        self.sampling_scores = t.tensor([nan] * buffer_size, device=self.models_device)
+        self.sampling_scores_1 = t.tensor([nan] * buffer_size, device=self.models_device)
+        self.sampling_scores_2 = t.tensor([nan] * buffer_size, device=self.models_device)
         self.epsilon_sampling = epsilon_sampling
 
         self.previous_actions_data = []
 
         self.competitor = competitor
 
-        self.agent = ModelPlayer(model=self.model_1,
-                                 random_action_rate=0.0,
-                                 model_device=models_device)
+        self.agent = DoubleModelPlayer(model_1 = model_1,
+                                       model_2 = model_2,
+                                       random_action_rate=0.0,
+                                       model_device=models_device)
+
+        self.warm_up_steps = warm_up_steps
 
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
 
@@ -69,6 +74,7 @@ class DQNTrainerV2:
                                   model_inputs,
                                   current_action_index,
                                   estimated_action_value,
+                                  model_used,
                                   current_reward):
         """
         updates previous state target with the maximum q_hat value
@@ -78,31 +84,44 @@ class DQNTrainerV2:
             current_action_index (int): index of chosen action
             reward (float): reward associated with current state and current action
         """
-        if len(self.buffer) == self.buffer_size:
-            self.clean_action_data_buffer_and_sampling()
+        self.clean_action_data_buffer_and_sampling()
 
         move_data_to_device(model_inputs, 'cpu')
 
         if len(self.previous_actions_data) == self.nb_steps_reward:
 
             to_buffer = self.previous_actions_data.pop(0)
+
+            if to_buffer['model_used'] == 'model_1':
+                target_network = self.model_2
+                buffer_to_update = self.buffer_1
+                sampling_scores_to_update = self.sampling_scores_1
+
+            elif to_buffer['model_used'] == 'model_2':
+                target_network = self.model_1
+                buffer_to_update = self.buffer_2
+                sampling_scores_to_update = self.sampling_scores_2
+
+            else:
+                raise ValueError('Incorrect value for model used')
+
             to_buffer['q_hat_input'] = model_inputs
 
-            self.buffer.append(to_buffer)
+            buffer_to_update.append(to_buffer)
 
             model_input_copy = deepcopy(model_inputs)
             move_data_to_device(model_input_copy, self.models_device)
 
-            model = self.model_2 if self.agent.model is self.model_1 else self.model_1
-            assert model is self.model_1 or model is self.model_2
+            target_network.eval()
+            q_hat = target_network(**model_input_copy).cpu()
+            target_network.train()
 
-            q_hat = model(**model_input_copy).cpu()
             idx = t.tensor(current_action_index).unsqueeze(0).unsqueeze(1)
 
             q_hat_action = t.gather(q_hat, dim=1, index=idx).item()
 
             sampling_score = abs(to_buffer['estimated_action_value'] - to_buffer['reward'] - q_hat_action)
-            self.sampling_scores[len(self.buffer) - 1] = sampling_score
+            sampling_scores_to_update[len(buffer_to_update) - 1] = sampling_score
 
         for element in self.previous_actions_data:
             element['reward'] += current_reward
@@ -110,7 +129,8 @@ class DQNTrainerV2:
         self.previous_actions_data.append({**model_inputs,
                                            'reward': current_reward,
                                            'target_idx': current_action_index,
-                                           'estimated_action_value': estimated_action_value})
+                                           'estimated_action_value': estimated_action_value,
+                                           'model_used': model_used})
 
 
     def clean_previous_actions_data(self):
@@ -118,13 +138,18 @@ class DQNTrainerV2:
         called when episode is finished to avoid adding max q_hat
         to the final reward of the previous game
         """
-        if len(self.previous_actions_data) + len(self.buffer) >= self.buffer_size:
-            self.clean_action_data_buffer_and_sampling()
+        self.clean_action_data_buffer_and_sampling()
 
         for element in self.previous_actions_data:
             sampling_score = abs(element['estimated_action_value'] - element['reward']) + self.epsilon_sampling
-            self.buffer.append(element)
-            self.sampling_scores[len(self.buffer) - 1] = sampling_score
+
+            if element['model_used'] == 'model_1':
+                self.buffer_1.append(element)
+                self.sampling_scores_1[len(self.buffer_1) - 1] = sampling_score
+
+            elif element['model_used'] == 'model_2':
+                self.buffer_2.append(element)
+                self.sampling_scores_2[len(self.buffer_2) - 1] = sampling_score
 
         self.previous_actions_data = []
 
@@ -142,6 +167,8 @@ class DQNTrainerV2:
         # True for white and False for black like in the chess package
         self.agent.set_color(color_agent)
         self.competitor.set_color(color_competitor)
+
+        self.agent.switch_models()
 
         board = Board()
 
@@ -182,6 +209,7 @@ class DQNTrainerV2:
             self.update_action_data_buffer(player_output.inference_data,
                                            player_output.action_index,
                                            player_output.estimated_action_value,
+                                           player_output.model_used,
                                            reward)
             self.clean_previous_actions_data()
 
@@ -207,6 +235,7 @@ class DQNTrainerV2:
             self.update_action_data_buffer(player_output.inference_data,
                                            player_output.action_index,
                                            player_output.estimated_action_value,
+                                           player_output.model_used,
                                            reward)
 
             self.clean_previous_actions_data()
@@ -216,6 +245,7 @@ class DQNTrainerV2:
         self.update_action_data_buffer(player_output.inference_data,
                                        player_output.action_index,
                                        player_output.estimated_action_value,
+                                       player_output.model_used,
                                        reward)
 
         return reward, board, True
@@ -242,8 +272,7 @@ class DQNTrainerV2:
                 reward, board, game_continues = self.generate_sample(board)
 
                 game_reward += reward
-
-                if len(self.buffer) > self.batch_size:
+                if len(self.buffer_1) >= self.warm_up_steps and len(self.buffer_2) >= self.warm_up_steps:
                     loss = self.train_batch()
                     self.summary_writer.add_scalar('MSE', loss, step)
 
@@ -263,12 +292,18 @@ class DQNTrainerV2:
             model = self.model_1
             optimizer = self.optimizer_1
             target_network = self.model_2
+            buffer = self.buffer_1
+            sampling_scores = self.sampling_scores_1
         else:
             model = self.model_2
             optimizer = self.optimizer_2
             target_network = self.model_1
+            buffer = self.buffer_2
+            sampling_scores = self.sampling_scores_2
 
-        batch, sample_indexes = self.make_training_batch(target_network=target_network)
+        batch, sample_indexes = self.make_training_batch(target_network=target_network,
+                                                         buffer=buffer,
+                                                         sampling_scores=sampling_scores)
 
         model_output = model(**batch['model_inputs'])
 
@@ -280,7 +315,7 @@ class DQNTrainerV2:
         new_sampling_scores = t.abs(predicted.detach().cpu().squeeze(1) - batch['targets']['targets'].cpu()) + self.epsilon_sampling
 
         for index, value in zip(sample_indexes, new_sampling_scores):
-            self.sampling_scores[index] = value.item()
+            sampling_scores[index] = value.item()
 
         loss.backward()
 
@@ -289,7 +324,7 @@ class DQNTrainerV2:
         return loss.cpu().detach().item()
 
     @t.no_grad()
-    def make_training_batch(self, target_network):
+    def make_training_batch(self, target_network, buffer, sampling_scores):
         """
         creates batch for training
 
@@ -298,8 +333,9 @@ class DQNTrainerV2:
             list[int]: indexes of sampled data in buffer. Used to update the
                        prioritized buffer sampling probas.
         """
-        batch_data_indexes = self.sample_indexes()
-        batch_data_list = [self.buffer[i] for i in batch_data_indexes]
+        batch_data_indexes = self.sample_indexes(buffer, sampling_scores)
+
+        batch_data_list = [buffer[i] for i in batch_data_indexes]
 
         # When we separate the data needing update and the other we loose index position
         # and therefore cannot update the priority buffer.
@@ -320,10 +356,12 @@ class DQNTrainerV2:
         if need_update:
 
             q_hat_batch = prepare_input_for_batch(need_update,
-                                                device=self.models_device,
-                                                with_target=False)
+                                                  device=self.models_device,
+                                                  with_target=False)
 
+            target_network.eval()
             q_hat_output = target_network(**q_hat_batch['model_inputs']).detach()
+            target_network.train()
 
             q_hat_values = t.gather(q_hat_output,
                                     dim=1,
@@ -343,7 +381,7 @@ class DQNTrainerV2:
 
         return batch, data_indexes
 
-    def sample_indexes(self):
+    def sample_indexes(self, buffer, sampling_scores):
         """
         Behaves differently from choices as the same index can't be sampled
         multiple time
@@ -351,10 +389,12 @@ class DQNTrainerV2:
         Returns:
             list: list of sampled indexes
         """
-        sampling_scores = self.sampling_scores[:len(self.buffer)]
+        buff_len = len(buffer)
+
+        sampling_scores = sampling_scores[:buff_len]
         sampling_probas = t.nn.functional.softmax(sampling_scores).cpu().numpy()
 
-        chosen_indexes = np.random.choice(len(self.buffer),
+        chosen_indexes = np.random.choice(buff_len,
                                           p=sampling_probas,
                                           size=self.batch_size,
                                           replace=False)
@@ -367,14 +407,29 @@ class DQNTrainerV2:
         drops old data in buffer and sampling scores.
         Used because we now use a tensor for sampling scores
         """
-        self.buffer = deque(self.buffer[self.buffer_size // 2 :], maxlen=self.buffer_size)
 
-        sampling_scores = self.sampling_scores.cpu().numpy()
-        sampling_scores = sampling_scores[self.buffer_size // 2 :]
+        if len(self.buffer_1) + len(self.previous_actions_data) + 1 >= self.buffer_size:
 
-        filling = np.array([nan] * (len(self.sampling_scores) - len(sampling_scores)))
+            self.buffer_1 = deque(self.buffer_1[self.buffer_size // 2 :], maxlen=self.buffer_size)
+            sampling_scores = self.sampling_scores_1.cpu().numpy()
 
-        sampling_scores = np.hstack([sampling_scores, filling])
-        assert sampling_scores.shape[0] == self.sampling_scores.size(0)
+            sampling_scores = sampling_scores[self.buffer_size // 2 :]
+            filling = np.array([nan] * (self.sampling_scores_1.size(0) - len(sampling_scores)))
+            sampling_scores = np.hstack([sampling_scores, filling])
 
-        self.sampling_scores = t.tensor(sampling_scores, dtype=t.float, device=self.models_device)
+            assert sampling_scores.shape[0] == self.sampling_scores_1.size(0)
+
+            self.sampling_scores_1 = t.tensor(sampling_scores, dtype=t.float, device=self.models_device)
+
+        if len(self.buffer_2) + len(self.previous_actions_data) + 1 >= self.buffer_size:
+
+            self.buffer_2 = deque(self.buffer_2[self.buffer_size // 2 :], maxlen=self.buffer_size)
+            self.sampling_scores_2 = self.sampling_scores_2.cpu().numpy()
+
+            sampling_scores = sampling_scores[self.buffer_size // 2 :]
+            filling = np.array([nan] * (self.sampling_scores_2.size(0) - len(sampling_scores)))
+            sampling_scores = np.hstack([sampling_scores, filling])
+
+            assert sampling_scores.shape[0] == self.sampling_scores_2.size(0)
+
+            self.sampling_scores_2 = t.tensor(sampling_scores, dtype=t.float, device=self.models_device)
