@@ -5,12 +5,11 @@ sampling and double dqn
 from collections import deque
 from copy import deepcopy
 from math import nan
-from random import choices, random, shuffle
+from random import random, shuffle
 
 import numpy as np
 import torch as t
 from chess import Board
-from scipy.special import softmax
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -50,6 +49,7 @@ class DQNTrainerV2:
 
         self.buffer = deque(maxlen=buffer_size)
         self.buffer_size = buffer_size
+        # To improve performance, we use as sampling score buffer a tensor on GPU
         self.sampling_scores = t.tensor([nan] * buffer_size, device=self.models_device)
         self.epsilon_sampling = epsilon_sampling
 
@@ -80,7 +80,7 @@ class DQNTrainerV2:
         """
         if len(self.buffer) == self.buffer_size:
             self.clean_action_data_buffer_and_sampling()
-            
+
         move_data_to_device(model_inputs, 'cpu')
 
         if len(self.previous_actions_data) == self.nb_steps_reward:
@@ -120,7 +120,7 @@ class DQNTrainerV2:
         """
         if len(self.previous_actions_data) + len(self.buffer) >= self.buffer_size:
             self.clean_action_data_buffer_and_sampling()
-            
+
         for element in self.previous_actions_data:
             sampling_score = abs(element['estimated_action_value'] - element['reward']) + self.epsilon_sampling
             self.buffer.append(element)
@@ -352,16 +352,15 @@ class DQNTrainerV2:
             list: list of sampled indexes
         """
         indexes = list(range(len(self.buffer)))
-        sampled_indexes = []
         sampling_scores = self.sampling_scores[:len(self.buffer)]
+        sampling_probas = t.nn.functional.softmax(sampling_scores).cpu().numpy()
 
-        for _ in range(self.batch_size):
-            sampling_probas = t.nn.functional.softmax(sampling_scores).cpu().numpy()
-            chosen_index = choices(indexes, weights=sampling_probas, k=1)[0]
-            sampling_scores[chosen_index] = float('-inf')
-            sampled_indexes.append(chosen_index)
+        chosen_indexes = np.random.choice(indexes,
+                                          p=sampling_probas,
+                                          size=self.batch_size,
+                                          replace=False)
 
-        return sampled_indexes
+        return chosen_indexes
 
 
     def clean_action_data_buffer_and_sampling(self):
@@ -370,13 +369,13 @@ class DQNTrainerV2:
         Used because we now use a tensor for sampling scores
         """
         self.buffer = deque(self.buffer[self.buffer_size // 2 :], maxlen=self.buffer_size)
-        
+
         sampling_scores = self.sampling_scores.cpu().numpy()
         sampling_scores = sampling_scores[self.buffer_size // 2 :]
-        
+
         filling = np.array([nan] * (len(self.sampling_scores) - len(sampling_scores)))
-        
+
         sampling_scores = np.hstack([sampling_scores, filling])
         assert sampling_scores.shape[0] == self.sampling_scores.size(0)
-    
+
         self.sampling_scores = t.tensor(sampling_scores, dtype=t.float, device=self.models_device)
