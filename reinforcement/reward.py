@@ -22,22 +22,22 @@ def get_endgame_reward(board, color):
     """
     if board.is_checkmate():
         return REWARD_CHECKMATE / MAX_REWARD, False
-    
+
     elif board.has_insufficient_material(color):
         return REWARD_INSUFFICIENT / MAX_REWARD, False
-    
+
     elif board.is_stalemate():
         return REWARD_STALEMATE / MAX_REWARD, True
-        
+
     elif board.is_seventyfive_moves():
         return REWARD_SEVENTYFIVE / MAX_REWARD, True
-    
+
     elif board.is_fivefold_repetition():
         return REWARD_FIVEFOLD / MAX_REWARD, True
-    
+
     else:
         return None, None
-    
+
 def get_move_reward(board, move):
     """
     returns the reward of the move
