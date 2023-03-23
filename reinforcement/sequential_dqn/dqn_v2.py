@@ -351,11 +351,10 @@ class DQNTrainerV2:
         Returns:
             list: list of sampled indexes
         """
-        indexes = list(range(len(self.buffer)))
         sampling_scores = self.sampling_scores[:len(self.buffer)]
         sampling_probas = t.nn.functional.softmax(sampling_scores).cpu().numpy()
 
-        chosen_indexes = np.random.choice(indexes,
+        chosen_indexes = np.random.choice(len(self.buffer),
                                           p=sampling_probas,
                                           size=self.batch_size,
                                           replace=False)
