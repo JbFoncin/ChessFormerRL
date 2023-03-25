@@ -342,16 +342,21 @@ class DQNTrainerV2:
 
         need_update, others = [], []
         need_update_indexes, other_indexes = [], []
+        weights_update, weights_other = [], []
 
-        for index, data in zip(batch_data_indexes, batch_data_list):
+        for index, data, weight in zip(batch_data_indexes,
+                                       batch_data_list,
+                                       weights):
 
             if 'q_hat_input' in data:
                 need_update.append(data)
                 need_update_indexes.append(index)
+                weights_update.append(weight)
 
             else:
                 others.append(data)
                 other_indexes.append(index)
+                weights_other.append(weight)
 
         if need_update:
 
@@ -376,6 +381,9 @@ class DQNTrainerV2:
 
         batch_data = need_update + others
         data_indexes = need_update_indexes + other_indexes
+        weights = weights_update + weights_other
+        
+        weights = t.tensor(weights, device=self.models_device)
 
         batch = prepare_input_for_batch(batch_data, self.models_device)
 
@@ -392,7 +400,7 @@ class DQNTrainerV2:
         buff_len = len(buffer)
 
         sampling_scores = sampling_scores[:buff_len]
-        sampling_ranks_normalized =  (1 / (sampling_scores.argsort().argsort() + 1)) ** self.alpha_sampling
+        sampling_ranks_normalized =  (1 / (sampling_scores.argsort(descending=True).argsort() + 1)) ** self.alpha_sampling
         sampling_probas = sampling_ranks_normalized / sampling_ranks_normalized.sum()
         probas_cpu = sampling_probas.cpu().numpy()
 
@@ -401,12 +409,10 @@ class DQNTrainerV2:
                                           size=self.batch_size,
                                           replace=False)
         
-        sampled_probas = t.tensor([probas_cpu[i] for i in chosen_indexes])
+        sampled_probas = np.array([probas_cpu[i] for i in chosen_indexes])
         
         weights = (buff_len * sampled_probas) ** -self.beta_sampling
         weights = weights / weights.max()
-        
-        weights = weights.to(self.models_device)
 
         return chosen_indexes, weights
 
