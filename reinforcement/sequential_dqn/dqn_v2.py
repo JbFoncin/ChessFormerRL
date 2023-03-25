@@ -25,7 +25,7 @@ class DQNTrainerV2:
     """
     def __init__(self, model_1, model_2, optimizer_1, optimizer_2, buffer_size,
                  competitor, batch_size, experiment_name, models_device,
-                 nb_steps_reward, epsilon_sampling, warm_up_steps):
+                 nb_steps_reward, warm_up_steps, alpha_sampling, beta_sampling):
         """
         Args:
             model_1 (t.nn.Module): The first DQN model
@@ -43,7 +43,6 @@ class DQNTrainerV2:
         self.optimizer_1, self.optimizer_2 = optimizer_1, optimizer_2
         self.models_device = models_device
         self.batch_size = batch_size
-        self.loss_criterion = nn.MSELoss().to(models_device)
 
         self.nb_steps_reward = nb_steps_reward
         #The buffer 1 is for actions taken by model 1 and idem for model 2
@@ -53,7 +52,8 @@ class DQNTrainerV2:
         # To improve performance, we use as sampling score buffer a tensor on GPU
         self.sampling_scores_1 = t.tensor([nan] * buffer_size, device=self.models_device)
         self.sampling_scores_2 = t.tensor([nan] * buffer_size, device=self.models_device)
-        self.epsilon_sampling = epsilon_sampling
+        self.alpha_sampling = alpha_sampling
+        self.beta_sampling = beta_sampling
 
         self.previous_actions_data = []
 
@@ -141,7 +141,7 @@ class DQNTrainerV2:
         self.clean_action_data_buffer_and_sampling()
 
         for element in self.previous_actions_data:
-            sampling_score = abs(element['estimated_action_value'] - element['reward']) + self.epsilon_sampling
+            sampling_score = abs(element['estimated_action_value'] - element['reward'])
 
             if element['model_used'] == 'model_1':
                 self.buffer_1.append(element)
@@ -301,7 +301,7 @@ class DQNTrainerV2:
             buffer = self.buffer_2
             sampling_scores = self.sampling_scores_2
 
-        batch, sample_indexes = self.make_training_batch(target_network=target_network,
+        batch, sample_indexes, weights = self.make_training_batch(target_network=target_network,
                                                          buffer=buffer,
                                                          sampling_scores=sampling_scores)
 
@@ -310,17 +310,17 @@ class DQNTrainerV2:
         predicted = t.gather(model_output, dim=1,
                              index=batch['targets']['targets_idx'].unsqueeze(1))
 
-        loss = self.loss_criterion(predicted.squeeze(-1), batch['targets']['targets'])
-
-        new_sampling_scores = t.abs(predicted.detach().cpu().squeeze(1) - batch['targets']['targets'].cpu()) + self.epsilon_sampling
-
-        for index, value in zip(sample_indexes, new_sampling_scores):
-            sampling_scores[index] = value.item()
-
+        loss = (predicted.squeeze(-1) - batch['targets']['targets']) ** 2
+        loss = (loss * weights).mean()
         loss.backward()
+
+        new_sampling_scores = t.abs(predicted.detach().cpu().squeeze(1) - batch['targets']['targets'].cpu())
 
         optimizer.step()
 
+        for index, value in zip(sample_indexes, new_sampling_scores):
+            sampling_scores[index] = value.item()
+        
         return loss.cpu().detach().item()
 
     @t.no_grad()
@@ -333,7 +333,7 @@ class DQNTrainerV2:
             list[int]: indexes of sampled data in buffer. Used to update the
                        prioritized buffer sampling probas.
         """
-        batch_data_indexes = self.sample_indexes(buffer, sampling_scores)
+        batch_data_indexes, weights = self.sample_indexes(buffer, sampling_scores)
 
         batch_data_list = [buffer[i] for i in batch_data_indexes]
 
@@ -379,7 +379,7 @@ class DQNTrainerV2:
 
         batch = prepare_input_for_batch(batch_data, self.models_device)
 
-        return batch, data_indexes
+        return batch, data_indexes, weights
 
     def sample_indexes(self, buffer, sampling_scores):
         """
@@ -392,14 +392,23 @@ class DQNTrainerV2:
         buff_len = len(buffer)
 
         sampling_scores = sampling_scores[:buff_len]
-        sampling_probas = t.nn.functional.softmax(sampling_scores).cpu().numpy()
+        sampling_ranks_normalized =  (1 / (sampling_scores.argsort().argsort() + 1)) ** self.alpha_sampling
+        sampling_probas = sampling_ranks_normalized / sampling_ranks_normalized.sum()
+        probas_cpu = sampling_probas.cpu().numpy()
 
         chosen_indexes = np.random.choice(buff_len,
-                                          p=sampling_probas,
+                                          p=probas_cpu,
                                           size=self.batch_size,
                                           replace=False)
+        
+        sampled_probas = t.tensor([probas_cpu[i] for i in chosen_indexes])
+        
+        weights = (buff_len * sampled_probas) ** -self.beta_sampling
+        weights = weights / weights.max()
+        
+        weights = weights.to(self.models_device)
 
-        return chosen_indexes
+        return chosen_indexes, weights
 
 
     def clean_action_data_buffer_and_sampling(self):
