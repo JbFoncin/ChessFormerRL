@@ -320,7 +320,7 @@ class DQNTrainerV2:
 
         for index, value in zip(sample_indexes, new_sampling_scores):
             sampling_scores[index] = value.item()
-        
+
         return loss.cpu().detach().item()
 
     @t.no_grad()
@@ -332,6 +332,7 @@ class DQNTrainerV2:
             dict[str, torch.Tensor]: model inputs and target
             list[int]: indexes of sampled data in buffer. Used to update the
                        prioritized buffer sampling probas.
+            np.array: weights to be used for batch training
         """
         batch_data_indexes, weights = self.sample_indexes(buffer, sampling_scores)
 
@@ -434,7 +435,9 @@ class DQNTrainerV2:
 
             assert sampling_scores.shape[0] == self.sampling_scores_1.size(0)
 
-            self.sampling_scores_1 = t.tensor(sampling_scores, dtype=t.float, device=self.models_device)
+            self.sampling_scores_1 = t.tensor(sampling_scores,
+                                              dtype=t.float,
+                                              device=self.models_device)
 
         if len(self.buffer_2) + len(self.previous_actions_data) + 1 >= self.buffer_size:
 
