@@ -155,7 +155,69 @@ class ModelPlayer(PlayerABC):
                               estimated_action_value=actions_scores[0, chosen_action_index].cpu().item(),
                               inference_data=inference_data)
 
-        return action, chosen_action_index, inference_data
+        return output
 
 
+class QRModelPlayer(ModelPlayer):
+    """
+    Player using a quantile regression model
+    """
+    @t.no_grad()
+    def choose_action(self, board):
+        """
+        Args:
+            board (chess.board): the current game object
+        Returns:
+            str: initital and final positions as str (like 'e2e4')
+            int: action index
+            inference data: dict of tensor to be stored in the replay buffer
+        """
+        if random() < self.random_action_rate:
 
+            return self.choose_random_action(board)
+
+        possible_actions = self.get_possible_actions(board)
+
+        inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
+
+        self.model.eval()
+        actions_scores = self.model(**inference_data)
+        self.model.train()
+
+        _, index = actions_scores.mean(2).max(1)
+
+        value = actions_scores[0, index.item(), :].cpu()
+
+        output = PlayerOutput(action=possible_actions[index.item()],
+                              action_index=index.item(),
+                              estimated_action_value=value,
+                              inference_data=inference_data)
+
+        return output
+
+    @t.no_grad()
+    def choose_random_action(self, board):
+        """
+        Args:
+            board (chess.Board): the current game
+
+        Returns:
+            str: next move as str
+            int: index of the chosen action
+            inference data: dict of tensor to be stored in the replay buffer
+        """
+        action, chosen_action_index, _ = super().choose_random_action(board)
+
+        inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
+
+        self.model.eval()
+        actions_scores = self.model(**inference_data)
+        self.model.train()
+        value = actions_scores[0, chosen_action_index, :].cpu()
+
+        output = PlayerOutput(action=action,
+                              action_index=chosen_action_index,
+                              estimated_action_value=value,
+                              inference_data=inference_data)
+
+        return output
