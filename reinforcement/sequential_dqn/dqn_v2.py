@@ -2,20 +2,18 @@
 We continue over the sequential training, but we add multi-step reward, importance
 sampling and double dqn
 """
-from collections import deque
 from copy import deepcopy
 from math import nan
-from random import random, shuffle
+from random import shuffle
 
 import numpy as np
 import torch as t
 from chess import Board
-from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from modeling.tools import move_data_to_device, prepare_input_for_batch
-from reinforcement.players import DoubleModelPlayer, ModelPlayer
+from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
