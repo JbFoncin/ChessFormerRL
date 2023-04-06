@@ -57,7 +57,7 @@ class DQNTrainerV2:
 
         self.competitor = competitor
 
-        self.agent = ModelPlayer(model=model_1,                                
+        self.agent = ModelPlayer(model=model_1,
                                  random_action_rate=0.0,
                                  model_device=model_device)
 
@@ -275,13 +275,13 @@ class DQNTrainerV2:
 
         for index, value in zip(sample_indexes, new_sampling_scores):
             self.sampling_scores[index] = value.item()
-            
+
         model_state_dict = self.model.state_dict()
         target_network_state_dict = self.target_network.state_dict()
-        
+
         for key in target_network_state_dict:
             target_network_state_dict[key] = self.tau * model_state_dict[key] + (1 - self.tau) * target_network_state_dict[key]
-            
+
         self.target_network.load_state_dict(target_network_state_dict)
 
         return loss.cpu().detach().item()
@@ -344,7 +344,7 @@ class DQNTrainerV2:
         batch_data = need_update + others
         data_indexes = need_update_indexes + other_indexes
         weights = weights_update + weights_other
-        
+
         weights = t.tensor(weights, device=self.model_device)
 
         batch = prepare_input_for_batch(batch_data, self.model_device)
@@ -370,9 +370,9 @@ class DQNTrainerV2:
                                           p=probas_cpu,
                                           size=self.batch_size,
                                           replace=False)
-        
+
         sampled_probas = np.array([probas_cpu[i] for i in chosen_indexes])
-        
+
         weights = (buff_len * sampled_probas) ** -self.beta_sampling
         weights = weights / weights.max()
 
