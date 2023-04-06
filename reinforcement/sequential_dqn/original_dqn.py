@@ -23,7 +23,7 @@ class DQNTrainer:
     """
     def __init__(self, model, random_action_rate, buffer_size,
                  update_target_q_step, competitor, batch_size,
-                 optimizer, experiment_name, model_device):
+                 optimizer, experiment_name, model_device, warm_up_steps):
         """
         Args:
             model (t.nn.Module): The model to be trained
@@ -42,6 +42,7 @@ class DQNTrainer:
         self.optimizer = optimizer
 
         self.update_target_q_step = update_target_q_step
+        self.warm_up_steps = warm_up_steps
 
         self.buffer = deque(maxlen=buffer_size)
         self.previous_action_data = None
@@ -207,7 +208,7 @@ class DQNTrainer:
                     loss = self.train_batch()
                     self.summary_writer.add_scalar('MSE', loss, step)
 
-                if step % self.update_target_q_step == 0:
+                if step > self.warm_up_steps:
                     self._set_frozen_model(self.model)
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
