@@ -4,12 +4,12 @@ from .layers import (ActionDecoderLayer, BoardEncoderLayer,
                      ChessFormerDecoderEmbedding, ChessFormerEncoderEmbedding)
 
 
-class ChessFormer(nn.Module):
+class ChessFormerDQN(nn.Module):
     """
-    The transformer model
+    The transformer model for DQN. Supports Quantile Regression through nb_quantiles arg
     """
     def __init__(self, nb_encoder_layers, nb_decoder_layers, embedding_dim,
-                 bottleneck_hidden_dim, dim_per_head, nb_head, dropout=0.1):
+                 bottleneck_hidden_dim, dim_per_head, nb_head, nb_quantiles=1):
         """
         Args:
             nb_encoder_layers (int): number of encoder layers
@@ -18,17 +18,19 @@ class ChessFormer(nn.Module):
             bottleneck_hidden_dim (int): hidden size in bottleneck
             dim_per_head (int): head size
             nb_head (int): number of heads
+            nb_quantiles (int): output dim for each possible move. Default to one. 
         """
         
         super().__init__()
+        
+        self.nb_quantiles = nb_quantiles
         
         self.encoder_embeddings = ChessFormerEncoderEmbedding(embedding_dim)
         
         encoder = [BoardEncoderLayer(embedding_dim,
                                      nb_head,
                                      dim_per_head,
-                                     bottleneck_hidden_dim,
-                                     dropout)
+                                     bottleneck_hidden_dim)
                    for _ in range(nb_encoder_layers)]
         self.encoder = nn.ModuleList(encoder)
         
@@ -39,12 +41,12 @@ class ChessFormer(nn.Module):
         decoder = [ActionDecoderLayer(embedding_dim,
                                       nb_head,
                                       dim_per_head,
-                                      bottleneck_hidden_dim,
-                                      dropout)
+                                      bottleneck_hidden_dim)
                    for _ in range(nb_decoder_layers)]
+        
         self.decoder = nn.ModuleList(decoder)
-                
-        self.q_scorer = nn.Linear(embedding_dim, 1)
+        
+        self.q_scorer = nn.Linear(embedding_dim, nb_quantiles)
         
     def forward(self, pieces_ids, colors_ids, start_move_indexes, end_move_indexes,
                 decoder_attention_mask=None, target_mask=None):

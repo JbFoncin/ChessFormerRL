@@ -8,9 +8,8 @@ from .sublayers import BottleNeck, ResidualMultiHeadAttention
 
 class ChessFormerEncoderEmbedding(nn.Module):
     """
-    basic embedding layer
+    Embedding layer for positional, color and piece encoding.
     """
-
     def __init__(self, embedding_dim):
         """
         Args:
@@ -70,24 +69,21 @@ class BoardEncoderLayer(nn.Module):
                  embedding_dim,
                  nb_head,
                  dim_per_head,
-                 bottleneck_hidden_dim,
-                 dropout=0.1):
+                 bottleneck_hidden_dim):
         """
         Args:
             embedding_dim (int): embedding size
             nb_head (int): number of attention heads
             dim_per_head (int): hidden size per head
             bottleneck_intermediate_dim (int): intermediate size in bottleneck
-            dropout (float): the dropout rate
         """
         super().__init__()
 
         self.multihead_attention = ResidualMultiHeadAttention(nb_head,
                                                               dim_per_head,
-                                                              embedding_dim,
-                                                              dropout)
+                                                              embedding_dim)
 
-        self.bottleneck = BottleNeck(embedding_dim, bottleneck_hidden_dim, dropout)
+        self.bottleneck = BottleNeck(embedding_dim, bottleneck_hidden_dim)
 
         self.layernorm_1 = nn.LayerNorm(embedding_dim)
         self.layernorm_2 = nn.LayerNorm(embedding_dim)
@@ -120,21 +116,19 @@ class ActionDecoderLayer(nn.Module):
                  embedding_dim,
                  nb_head,
                  dim_per_head,
-                 bottleneck_hidden_dim,
-                 dropout=0.1):
+                 bottleneck_hidden_dim):
         """
         Args:
             embedding_dim (int): embedding size
             nb_head (int): number of attention heads
             dim_per_head (int): hidden size per head
             bottleneck_intermediate_dim (int): intermediate size in bottleneck
-            dropout (float): the dropout regularization rate
         """
         super().__init__()
 
-        self.multihead_attention = ResidualMultiHeadAttention(nb_head, dim_per_head, embedding_dim, dropout)
+        self.multihead_attention = ResidualMultiHeadAttention(nb_head, dim_per_head, embedding_dim)
 
-        self.bottleneck = BottleNeck(embedding_dim, bottleneck_hidden_dim, dropout)
+        self.bottleneck = BottleNeck(embedding_dim, bottleneck_hidden_dim)
 
         self.layernorm_1 = nn.LayerNorm(embedding_dim)
         self.layernorm_2 = nn.LayerNorm(embedding_dim)

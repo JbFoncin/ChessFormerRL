@@ -8,6 +8,7 @@ REWARD_SEVENTYFIVE = 0
 REWARD_FIVEFOLD = 0
 MAX_REWARD = 20
 
+
 def get_endgame_reward(board, color):
     """
     Returns reward if game is finished, else zero.
@@ -37,6 +38,7 @@ def get_endgame_reward(board, color):
 
     else:
         return None, None
+
 
 def get_move_reward(board, move):
     """
