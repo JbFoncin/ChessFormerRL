@@ -122,7 +122,7 @@ class ActionDecoderLayer(nn.Module):
             embedding_dim (int): embedding size
             nb_head (int): number of attention heads
             dim_per_head (int): hidden size per head
-            bottleneck_intermediate_dim (int): intermediate size in bottleneck
+            bottleneck_hidden_dim (int): intermediate size in bottleneck
         """
         super().__init__()
 
@@ -138,6 +138,7 @@ class ActionDecoderLayer(nn.Module):
         Args:
             enc_output (torch.tensor): tensor of size (number of pieces * embedding_dim)
             decoder_hidden_state (torch.tensor): tensor of size (number of possible moves * embedding dim)
+            attention_mask (torch.tensor): mask to be applied on attention 
         Returns:
             torch.tensor: tensor of size (q_seq_len, embedding_dim)
         """
