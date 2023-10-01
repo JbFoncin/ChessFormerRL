@@ -51,13 +51,13 @@ class ResidualMultiHeadAttention(nn.Module):
         value = value.view(bs, seq_len_k, self.nb_head, self.dim_per_head).transpose(1, 2)
 
         attn_scores = query @ key.transpose(-1, -2) / sqrt(self.dim_per_head)
-
+ 
+        attn = self.softmax(attn_scores)
+        
         if attention_mask is not None:
             attention_mask_unsqueezed = attention_mask.unsqueeze(1)
             mask_all_heads = t.repeat_interleave(attention_mask_unsqueezed, self.nb_head, dim=1)
-            attn_scores = attn.masked_fill(mask_all_heads, float('-inf'))
-        
-        attn = self.softmax(attn_scores)
+            attn = attn.masked_fill(mask_all_heads, 0.0)
 
         attn_product = attn @ value
 

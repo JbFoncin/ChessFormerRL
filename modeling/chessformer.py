@@ -60,7 +60,7 @@ class ChessFormerDQN(nn.Module):
             target_mask (torch.tensor[torch.Bool]): mask for targets to be set at -inf 
 
         Returns:
-            torch.tensor: a tensor of size (possible_actions)
+            torch.tensor: a tensor of size (batch, possible_actions)
         """
         
         hidden_state_encoder = self.encoder_embeddings(pieces_ids, colors_ids)
