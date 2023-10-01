@@ -133,12 +133,11 @@ class ActionDecoderLayer(nn.Module):
         self.layernorm_1 = nn.LayerNorm(embedding_dim)
         self.layernorm_2 = nn.LayerNorm(embedding_dim)
 
-    def forward(self, enc_output, decoder_hidden_state, attention_mask=None):
+    def forward(self, enc_output, decoder_hidden_state):
         """
         Args:
             enc_output (torch.tensor): tensor of size (number of pieces * embedding_dim)
             decoder_hidden_state (torch.tensor): tensor of size (number of possible moves * embedding dim)
-            attention_mask (torch.tensor): mask to be applied on attention 
         Returns:
             torch.tensor: tensor of size (q_seq_len, embedding_dim)
         """
@@ -146,8 +145,7 @@ class ActionDecoderLayer(nn.Module):
 
         decoder_hidden_state = self.multihead_attention(decoder_hidden_state,
                                                         enc_output,
-                                                        enc_output,
-                                                        attention_mask)
+                                                        enc_output)
 
         decoder_hidden_state = self.layernorm_2(decoder_hidden_state)
 
