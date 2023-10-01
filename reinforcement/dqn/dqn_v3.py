@@ -15,7 +15,7 @@ from tqdm import tqdm
 from modeling.tools import move_data_to_device, prepare_input_for_batch
 from modeling.qr_loss import QRLoss
 from reinforcement.dqn.dqn_v2 import DQNTrainerV2
-from reinforcement.players import ModelPlayer
+from reinforcement.players import QRModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
@@ -26,7 +26,7 @@ class DQNTrainerV3(DQNTrainerV2):
     def __init__(self, model_1, model_2, optimizer, buffer_size,
                  competitor, batch_size, experiment_name, model_device,
                  nb_steps_reward, warm_up_steps, alpha_sampling, beta_sampling,
-                 tau, n_quantiles=100):
+                 tau):
         """
         Args:
             model_1 (t.nn.Module): The first DQN model
@@ -39,6 +39,11 @@ class DQNTrainerV3(DQNTrainerV2):
             batch_size (int): number of elements per batch when training
             experiment_name (str): name of the tensorboard run
             models_device (str): device used for models
+            nb_steps_rewards (int): The number of steps to unroll Bellman equation
+                                    for more information see https://arxiv.org/pdf/1703.01327.pdf
+            warm_up_steps (int): minimum size of buffer to acquire at the beginning of the train
+            alpha_sampling (float): hyperparameter for batch sampling
+            beta_sampling (float): hyperparameter for batch weighting
         """
         self.model, self.target_network = model_1,  model_2
         self.target_network.requires_grad_(False)
@@ -60,9 +65,9 @@ class DQNTrainerV3(DQNTrainerV2):
 
         self.competitor = competitor
 
-        self.agent = ModelPlayer(model=model_1,
-                                 random_action_rate=0.0,
-                                 model_device=model_device)
+        self.agent = QRModelPlayer(model=model_1,
+                                   random_action_rate=0.0,
+                                   model_device=model_device)
 
         self.tau = tau
 

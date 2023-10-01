@@ -37,6 +37,11 @@ class DQNTrainerV2:
             batch_size (int): number of elements per batch when training
             experiment_name (str): name of the tensorboard run
             models_device (str): device used for models
+            nb_steps_rewards (int): The number of steps to unroll Bellman equation
+                                    for more information see https://arxiv.org/pdf/1703.01327.pdf
+            warm_up_steps (int): minimum size of buffer to acquire at the beginning of the train
+            alpha_sampling (float): hyperparameter for batch sampling
+            beta_sampling (float): hyperparameter for batch weighting
         """
         self.model, self.target_network = model_1,  model_2
         self.target_network.requires_grad_(False)
@@ -80,7 +85,8 @@ class DQNTrainerV2:
         Args:
             model_inputs (dict[str, torch.tensor]): model inputs
             current_action_index (int): index of chosen action
-            reward (float): reward associated with current state and current action
+            estimated_action_value (float): Q-value associated to the current action
+            current_reward (float): reward associated with current state and current action
         """
         self.clean_action_data_buffer_and_sampling()
 
