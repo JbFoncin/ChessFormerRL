@@ -5,12 +5,16 @@ from chesstools.tools import (PADDING_LM_ID, get_all_encoded_pieces_and_colors,
                               get_index)
 
 
-def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True):
+def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True,
+                            quantile_reg=False):
     """generates input for training from previously generated data
 
     Args:
         inference_data_list (list[dict]): the list of dict to aggregate
         device (str): the device to create the tensors on
+        with_target (bool): True if target is required
+        quantile_reg: True if target is a tensor. Else, target is considered as a scalar.
+                      Default to False
 
     Returns:
         dict: model inputs and targets
@@ -28,7 +32,10 @@ def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True)
     targets_idx = t.tensor([inf_data['target_idx'] for inf_data in inference_data_list], device=device)
 
     if with_target:
-        targets = t.tensor([inf_data['target'] for inf_data in inference_data_list], device=device)
+        if quantile_reg:
+            targets = t.cat([inf_data['target'].unsqueeze(0) for inf_data in inference_data_list]).to(device)
+        else:
+            targets = t.tensor([inf_data['target'] for inf_data in inference_data_list], device=device)
 
     else:
         targets = None
@@ -54,7 +61,7 @@ def prepare_for_model_inference(board, color_map, device='cpu'):
     Args:
         board (chess.Board): object managing state and possible actions
         color_map (dict): pieces color mapping for the current player
-        device (str): the device to create the tensors on
+        device (str): the device to create the tensors on. Default to 'cpu'
 
     Returns:
         dict[t.Tensor]: dict of tensors needed for model inference
