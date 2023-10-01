@@ -27,13 +27,12 @@ class ResidualMultiHeadAttention(nn.Module):
         self.output = nn.Linear(dim_per_head * nb_head, embedding_dim, bias=False)
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, hidden_state_query, hidden_state_key, hidden_state_value, attention_mask=None):
+    def forward(self, hidden_state_query, hidden_state_key, hidden_state_value):
         """
         Args:
             hidden_state_query (torch.tensor): the hidden state to be projected as query
             hidden_state_key (torch.tensor): the hidden state to be projected as key
             hidden_state_value (torch.tensor): the hidden state to be projected as value
-            attention_mask (torch.tensor): the attention mask to avoid attention on padding tokens
 
         Returns:
             torch.tensor: hidden state for the next layer
@@ -53,11 +52,6 @@ class ResidualMultiHeadAttention(nn.Module):
         attn_scores = query @ key.transpose(-1, -2) / sqrt(self.dim_per_head)
  
         attn = self.softmax(attn_scores)
-        
-        if attention_mask is not None:
-            attention_mask_unsqueezed = attention_mask.unsqueeze(1)
-            mask_all_heads = t.repeat_interleave(attention_mask_unsqueezed, self.nb_head, dim=1)
-            attn = attn.masked_fill(mask_all_heads, 0.0)
 
         attn_product = attn @ value
 

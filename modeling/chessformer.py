@@ -49,14 +49,13 @@ class ChessFormerDQN(nn.Module):
         self.q_scorer = nn.Linear(embedding_dim, nb_quantiles)
         
     def forward(self, pieces_ids, colors_ids, start_move_indexes, end_move_indexes,
-                decoder_attention_mask=None, target_mask=None):
+                target_mask=None):
         """
         Args:
             pieces_ids (torch.tensor[torch.Long]): id of each piece
             colors_ids (torch.tensor[torch.Long]): color of each piece (0 or 1)
             start_move_indexes (torch.tensor[torch.Long]): start move for each possible action
             end_move_indexes (torch.tensor[torch.Long]): destination for each possible action
-            decoder_attention_mask (torch.tensor[torch.Bool]): padding mask to avoid attention on padded token for decoder
             target_mask (torch.tensor[torch.Bool]): mask for targets to be set at -inf 
 
         Returns:
@@ -74,8 +73,7 @@ class ChessFormerDQN(nn.Module):
         
         for decoder_layer in self.decoder:
             hidden_state_decoder = decoder_layer(hidden_state_encoder,
-                                                 hidden_state_decoder,
-                                                 attention_mask=decoder_attention_mask)
+                                                 hidden_state_decoder)
             
         q_scores = self.q_scorer(hidden_state_decoder)
         

@@ -24,7 +24,6 @@ def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True)
     destinations = [inf_data['end_move_indexes'].squeeze(0) for inf_data in inference_data_list]
     destinations_padded = pad_sequence(destinations, batch_first=True, padding_value=PADDING_LM_ID).to(device)
 
-    attention_mask = make_attention_mask(starting_points_padded).to(device)
 
     targets_idx = t.tensor([inf_data['target_idx'] for inf_data in inference_data_list], device=device)
 
@@ -42,7 +41,6 @@ def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True)
              'colors_ids': colors_ids,
              'start_move_indexes': starting_points_padded,
              'end_move_indexes': destinations_padded,
-             'decoder_attention_mask': attention_mask,
              'target_mask': target_mask},
         'targets':
             {'targets': targets,
@@ -81,23 +79,6 @@ def prepare_for_model_inference(board, color_map, device='cpu'):
     }
 
     return inference_data
-
-def make_attention_mask(padded_sequence):
-    """
-    makes attention mask for padded sequences
-
-    Args:
-        padded_sequence (t.tensor): the sequence padded
-
-    Returns:
-        t.tensor: the mask to be applied after softmax
-    """
-
-    pad_mask = padded_sequence == PADDING_LM_ID
-
-    attention_masks = t.repeat_interleave(pad_mask.unsqueeze(2), 64, dim=2)
-
-    return attention_masks
 
 def move_data_to_device(data, device):
     """
