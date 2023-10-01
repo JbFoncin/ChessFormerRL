@@ -23,7 +23,7 @@ class QRLoss(Module):
         self.register_buffer('quantiles', quantiles)
         self.kappa = kappa
 
-    def forward(self, choice_quantile, ground_truth, weights):
+    def forward(self, choice_quantile, ground_truth, weights=None):
         """
         Args:
             choice_quantile (t.Tensor): model output for an action,
@@ -43,8 +43,11 @@ class QRLoss(Module):
         quantiles = self.quantiles.expand(batch_size, n_quantiles, n_quantiles)
         huber_error_weighted = t.abs(quantiles - (error.detach() < 0).float()) * huber_error 
         
-        weighted_error = huber_error_weighted.mean(-1).mean(-1) * weights
+        batch_error = huber_error_weighted.mean(-1).mean(-1)
         
-        return weighted_error.mean(0)
+        if weights is not None:
+            batch_error = batch_error * weights
+        
+        return batch_error.mean(0)
         
         
