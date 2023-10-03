@@ -23,55 +23,69 @@ class DQNTrainerV3(DQNTrainerV2):
     """
     same as DQN v2, just adding QR DQN
     """
-    def __init__(self, model_1, model_2, optimizer, buffer_size,
-                 competitor, batch_size, experiment_name, model_device,
-                 nb_steps_reward, warm_up_steps, alpha_sampling, beta_sampling,
-                 tau):
-        """
-        Args:
-            model_1 (t.nn.Module): The first DQN model
-            model_2 (t.nn.Module): The second DQN model
-            optimizer_1 (t.optim.Optimizer): optimizer of model_1
-            optimizer_2 (t.optim.Optimizer): optimizer of model_2
-            buffer_size (int): maximum history len
-            revert_models_nb_steps: nb steps between models switching
-            competitor (reinforcement.players.PlayerABC derived classes)
-            batch_size (int): number of elements per batch when training
-            experiment_name (str): name of the tensorboard run
-            models_device (str): device used for models
-            nb_steps_rewards (int): The number of steps to unroll Bellman equation
-                                    for more information see https://arxiv.org/pdf/1703.01327.pdf
-            warm_up_steps (int): minimum size of buffer to acquire at the beginning of the train
-            alpha_sampling (float): hyperparameter for batch sampling
-            beta_sampling (float): hyperparameter for batch weighting
-        """
-        self.model, self.target_network = model_1,  model_2
-        self.target_network.requires_grad_(False)
-        self.target_network.eval()
-        self.optimizer = optimizer
-        self.model_device = model_device
-        self.batch_size = batch_size
-        self.loss = QRLoss()
-
-        self.nb_steps_reward = nb_steps_reward
-        self.buffer = []
-        self.buffer_size = buffer_size
-        # To improve performance, we use as sampling score buffer a tensor on GPU
-        self.sampling_scores = t.tensor([nan] * buffer_size, device=self.model_device)
-        self.alpha_sampling = alpha_sampling
-        self.beta_sampling = beta_sampling
-
-        self.previous_actions_data = []
-
-        self.competitor = competitor
-
-        self.agent = QRModelPlayer(model=model_1,
-                                   random_action_rate=0.0,
-                                   model_device=model_device)
-
-        self.tau = tau
-
-        self.warm_up_steps = warm_up_steps
-
-        self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
+    def __init__(self, model_1, *args, kappa=0.001):
+        super().__init__(model_1, *args, **kwargs)
+        self.loss = QRLoss(self.agent.model.nb_quantiles, kappa=kappa)
         
+    def _make_agent(self, model, model_device):
+        """creates the agent, made this way for derived class
+
+        Args:
+            model (t.nn.Module derived): the model to be used to take decisions
+            model_device (str): the model device
+
+        Returns:
+            _type_: _description_
+        """
+        agent = QRModelPlayer(model=model,
+                              random_action_rate=0.0,
+                              model_device=model_device)
+        
+        return agent
+    
+    @t.no_grad()
+    def update_action_data_buffer(self,
+                                  model_inputs,
+                                  current_action_index,
+                                  estimated_action_value,
+                                  current_reward):
+        """
+        updates previous state target with the maximum q_hat value
+
+        Args:
+            model_inputs (dict[str, torch.tensor]): model inputs
+            current_action_index (int): index of chosen action
+            estimated_action_value (float): Q-value associated to the current action
+            current_reward (float): reward associated with current state and current action
+        """
+        self.clean_action_data_buffer_and_sampling()
+
+        move_data_to_device(model_inputs, 'cpu')
+
+        if len(self.previous_actions_data) == self.nb_steps_reward:
+
+            to_buffer = self.previous_actions_data.pop(0)
+
+            to_buffer['q_hat_input'] = model_inputs
+
+            self.buffer.append(to_buffer)
+
+            model_input_copy = deepcopy(model_inputs)
+            move_data_to_device(model_input_copy, self.model_device)
+
+            q_hat = self.target_network(**model_input_copy).cpu()
+
+            idx = t.tensor(current_action_index).unsqueeze(0).unsqueeze(1)
+
+            q_hat_action = t.gather(q_hat, dim=1, index=idx).item()
+
+            sampling_score = self.loss(to_buffer['estimated_action_value'] - to_buffer['reward'] - q_hat_action)
+            self.sampling_scores[len(self.buffer) - 1] = sampling_score
+
+        for element in self.previous_actions_data:
+            element['reward'] += current_reward
+
+        self.previous_actions_data.append({**model_inputs,
+                                           'reward': current_reward,
+                                           'target_idx': current_action_index,
+                                           'estimated_action_value': estimated_action_value})    
