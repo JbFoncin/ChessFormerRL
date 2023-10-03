@@ -62,9 +62,7 @@ class DQNTrainerV2:
 
         self.competitor = competitor
 
-        self.agent = ModelPlayer(model=model_1,
-                                 random_action_rate=0.0,
-                                 model_device=model_device)
+        self.agent = self._make_agent(model_1, model_device=model_device)
 
         self.tau = tau
 
@@ -72,6 +70,21 @@ class DQNTrainerV2:
 
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
 
+    def _make_agent(self, model, model_device):
+        """creates the agent, made this way for derived class
+
+        Args:
+            model (t.nn.Module derived): the model to be used to take decisions
+            model_device (str): the model device
+
+        Returns:
+            _type_: _description_
+        """
+        agent = ModelPlayer(model=model,
+                            random_action_rate=0.0,
+                            model_device=model_device)
+        
+        return agent
 
     @t.no_grad()
     def update_action_data_buffer(self,
