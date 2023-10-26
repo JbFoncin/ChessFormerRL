@@ -124,7 +124,7 @@ class DQNTrainerV2:
 
             sampling_score = abs(to_buffer['estimated_action_value'] - to_buffer['reward'] - q_hat_action)
             self.sampling_scores[len(self.buffer) - 1] = sampling_score
-
+            
         for element in self.previous_actions_data:
             element['reward'] += current_reward
 
