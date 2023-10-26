@@ -48,6 +48,6 @@ class QRLoss(Module):
         if weights is not None:
             batch_error = batch_error * weights
         
-        return batch_error.mean(0)
+        return batch_error
         
         
