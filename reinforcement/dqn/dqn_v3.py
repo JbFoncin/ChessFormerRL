@@ -24,8 +24,9 @@ class DQNTrainerV3(DQNTrainerV2):
     same as DQN v2, just adding QR DQN
     """
     def __init__(self, model_1, *args, kappa=0.001):
-        super().__init__(model_1, *args, **kwargs)
+        super().__init__(model_1, *args)
         self.loss = QRLoss(self.agent.model.nb_quantiles, kappa=kappa)
+        self.loss = self.loss.to(self.model_device)
         
     def _make_agent(self, model, model_device):
         """creates the agent, made this way for derived class
@@ -74,10 +75,11 @@ class DQNTrainerV3(DQNTrainerV2):
             move_data_to_device(model_input_copy, self.model_device)
 
             q_hat = self.target_network(**model_input_copy).cpu()
+            # q_hat.gather(dim=1, index=t.tensor([[[x]*nb_quantiles], [[y]*nb_quantiles]]))
+            # gives expected output for batch size 2 and best actions x and y
+            idx = t.tensor(current_action_index).repeat(self.agent.model.nb_quantiles).unsqueeze(0).unsqueeze(1)
 
-            idx = t.tensor(current_action_index).unsqueeze(0).unsqueeze(1)
-
-            q_hat_action = t.gather(q_hat, dim=1, index=idx).item()
+            q_hat_action = t.gather(q_hat, dim=1, index=idx)
 
             sampling_score = self.loss(to_buffer['estimated_action_value'] - to_buffer['reward'] - q_hat_action)
             self.sampling_scores[len(self.buffer) - 1] = sampling_score
@@ -89,3 +91,47 @@ class DQNTrainerV3(DQNTrainerV2):
                                            'reward': current_reward,
                                            'target_idx': current_action_index,
                                            'estimated_action_value': estimated_action_value})    
+    
+    
+        def train_batch(self):
+            """
+            samples and train one batch
+
+            Returns:
+                float: loss value on the current batch
+            """
+            self.optimizer.zero_grad()
+
+            batch, sample_indexes, weights = self.make_training_batch()
+
+            model_output = self.model(**batch['model_inputs'])
+            
+            gather_index = t.repeat_interleave(batch['targets']['targets_idx'],
+                                               self.agent.model.nb_quantiles)
+            
+            gather_index_reshaped = gather_index.view(self.batch_size, -1).unsqueeze(1)
+
+            predicted = t.gather(model_output, dim=1,
+                                 index=gather_index_reshaped)
+
+            loss_per_batch = self.loss(predicted.squeeze(-1), batch['targets']['targets'], weights)
+
+            loss_value = loss_per_batch.mean(0)
+            loss_value.backward()
+
+            new_sampling_scores = loss_per_batch.detach().cpu()
+
+            self.optimizer.step()
+
+            for index, value in zip(sample_indexes, new_sampling_scores):
+                self.sampling_scores[index] = value.item()
+
+            model_state_dict = self.model.state_dict()
+            target_network_state_dict = self.target_network.state_dict()
+
+            for key in target_network_state_dict:
+                target_network_state_dict[key] = self.tau * model_state_dict[key] + (1 - self.tau) * target_network_state_dict[key]
+
+            self.target_network.load_state_dict(target_network_state_dict)
+
+            return loss_value.cpu().detach().item()
