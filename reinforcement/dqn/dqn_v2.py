@@ -42,6 +42,7 @@ class DQNTrainerV2:
             warm_up_steps (int): minimum size of buffer to acquire at the beginning of the train
             alpha_sampling (float): hyperparameter for batch sampling
             beta_sampling (float): hyperparameter for batch weighting
+            tau (float): moving average parameter for target_network weight update
         """
         self.model, self.target_network = model_1,  model_2
         self.target_network.requires_grad_(False)
@@ -70,6 +71,7 @@ class DQNTrainerV2:
 
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
 
+
     def _make_agent(self, model, model_device):
         """creates the agent, made this way for derived class
 
@@ -85,6 +87,7 @@ class DQNTrainerV2:
                             model_device=model_device)
         
         return agent
+
 
     @t.no_grad()
     def update_action_data_buffer(self,
@@ -175,7 +178,7 @@ class DQNTrainerV2:
 
     def generate_sample(self, board):
         """
-        each player choose an action, reward is computed and data added to buffer
+        Each player chooses an action, reward is computed and data added to buffer
 
         Args:
             board (chess.Board): the current game
@@ -242,8 +245,10 @@ class DQNTrainerV2:
 
     def train(self, num_games):
         """
+        The training loop.
+        
         Args:
-            num_games (int):
+            num_games (int): how much games the model will be trained on
         """
         step = 0
 
