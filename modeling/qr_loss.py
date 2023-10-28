@@ -18,12 +18,19 @@ class QRLoss(Module):
                            this threshold are processed with MSE, above with MAE
         """
         super().__init__()
+        
         quantiles = t.tensor([i / (nb_quantiles + 1) for i in range(1, nb_quantiles + 1)],
-                             dtype=t.float32)
+                             dtype=t.float32, device='cuda')
         self.register_buffer('quantiles', quantiles)
+        
+        quantiles_cpu = t.tensor([i / (nb_quantiles + 1) for i in range(1, nb_quantiles + 1)],
+                                 dtype=t.float32, device='cpu')
+        self.register_buffer('quantiles_cpu', quantiles_cpu)
+        
         self.kappa = kappa
 
-    def forward(self, choice_quantile, ground_truth, weights=None):
+
+    def forward(self, choice_quantile, ground_truth, weights=None, device='cuda'):
         """
         Args:
             choice_quantile (t.Tensor): model output for an action,
@@ -31,6 +38,11 @@ class QRLoss(Module):
             ground_truth (t.Tensor): Q function estimation + reward, size = batch_size * nb_quantiles
             weights (t.Tensor): weigt for each batch element. size = batch_size
         """
+        if device == 'cpu':
+            quantiles = self.quantiles_cpu
+        else:
+            quantiles = self.quantiles
+        
         error = choice_quantile - ground_truth
         batch_size, n_quantiles = error.size()
         error = error.unsqueeze(-1).expand(batch_size, n_quantiles, n_quantiles)
@@ -40,7 +52,7 @@ class QRLoss(Module):
         
         # We detach error in the following line as abs(self.quantile_tau -(error.detach() < 0).float()) is
         # used as weight on the huberloss
-        quantiles = self.quantiles.expand(batch_size, n_quantiles, n_quantiles)
+        quantiles = quantiles.expand(batch_size, n_quantiles, n_quantiles)
         huber_error_weighted = t.abs(quantiles - (error.detach() < 0).float()) * huber_error 
         
         batch_error = huber_error_weighted.mean(-1).mean(-1)
