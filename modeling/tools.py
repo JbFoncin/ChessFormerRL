@@ -13,8 +13,9 @@ def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True,
         inference_data_list (list[dict]): the list of dict to aggregate
         device (str): the device to create the tensors on
         with_target (bool): True if target is required
-        quantile_reg: True if target is a tensor. Else, target is considered as a scalar.
-                      Default to False
+        quantile_reg (bool or int): False if target is a scalar. Else, target is a tensor of quantiles.
+                                    In this case
+                                    Default to False
 
     Returns:
         dict: model inputs and targets
@@ -28,17 +29,22 @@ def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True,
     destinations = [inf_data['end_move_indexes'].squeeze(0) for inf_data in inference_data_list]
     destinations_padded = pad_sequence(destinations, batch_first=True, padding_value=PADDING_LM_ID).to(device)
 
-
     targets_idx = t.tensor([inf_data['target_idx'] for inf_data in inference_data_list], device=device)
-
-    if with_target:
-        if quantile_reg:
-            targets = t.cat([inf_data['target'].unsqueeze(0) for inf_data in inference_data_list]).to(device)
-        else:
+    
+    if quantile_reg:
+        
+        batch_size = len(inference_data_list)
+        targets_idx = t.repeat_interleave(targets_idx, quantile_reg).view(batch_size, -1).unsqueeze(1)
+        
+        if with_target:
+            targets = t.cat([inf_data['target'].unsqueeze(0) for inf_data in inference_data_list],
+                            dim=0).to(device)
+        
+    else:
+        
+        if with_target:
             targets = t.tensor([inf_data['target'] for inf_data in inference_data_list], device=device)
 
-    else:
-        targets = None
 
     target_mask = (starting_points_padded == PADDING_LM_ID).to(device)
 
