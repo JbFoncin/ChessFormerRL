@@ -3,31 +3,29 @@ This is the final step in the DQN journey.
 We go for a quantile regression Deep Q network
 """
 from copy import deepcopy
-from math import nan
-from random import shuffle
 
-import numpy as np
 import torch as t
-from chess import Board
-from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
 
 from modeling.tools import move_data_to_device, prepare_input_for_batch
 from modeling.qr_loss import QRLoss
 from reinforcement.dqn.dqn_v2 import DQNTrainerV2
 from reinforcement.players import QRModelPlayer
-from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
 class DQNTrainerV3(DQNTrainerV2):
     """
     same as DQN v2, just adding QR DQN
     """
-    def __init__(self, model_1, *args, kappa=0.001):
-        super().__init__(model_1, *args)
+    def __init__(self, model_1, kappa=0.001, **kwargs):
+        """
+        Args:
+            model_1 (t.nn.Module derived): The model to be used by the agent
+            kappa (float, optional): Threshold for Huber loss. Defaults to 0.001.
+        """
+        super().__init__(model_1, **kwargs)
         self.loss = QRLoss(self.agent.model.nb_quantiles, kappa=kappa)
-        self.loss = self.loss.to(self.model_device)
-        
+
+
     def _make_agent(self, model, model_device):
         """creates the agent, made this way for derived class
 
@@ -36,14 +34,15 @@ class DQNTrainerV3(DQNTrainerV2):
             model_device (str): the model device
 
         Returns:
-            _type_: _description_
+            reinforcement.players.QRModelPlayer: the agent
         """
         agent = QRModelPlayer(model=model,
                               random_action_rate=0.0,
                               model_device=model_device)
         
         return agent
-    
+
+
     @t.no_grad()
     def update_action_data_buffer(self,
                                   model_inputs,
@@ -79,10 +78,13 @@ class DQNTrainerV3(DQNTrainerV2):
             # gives expected output for batch size 2 and best actions x and y
             idx = t.tensor(current_action_index).repeat(self.agent.model.nb_quantiles).unsqueeze(0).unsqueeze(1)
 
-            q_hat_action = t.gather(q_hat, dim=1, index=idx)
+            q_hat_action = t.gather(q_hat, dim=1, index=idx).squeeze(1)
 
-            sampling_score = self.loss(to_buffer['estimated_action_value'] - to_buffer['reward'] - q_hat_action)
-            self.sampling_scores[len(self.buffer) - 1] = sampling_score
+            sampling_score = self.loss(to_buffer['estimated_action_value'],
+                                       to_buffer['reward'] + q_hat_action,
+                                       device='cpu')
+            
+            self.sampling_scores[len(self.buffer) - 1] = sampling_score.mean()
 
         for element in self.previous_actions_data:
             element['reward'] += current_reward
@@ -91,8 +93,8 @@ class DQNTrainerV3(DQNTrainerV2):
                                            'reward': current_reward,
                                            'target_idx': current_action_index,
                                            'estimated_action_value': estimated_action_value})    
-    
-    
+
+
     def train_batch(self):
         """
         samples and train one batch
@@ -106,13 +108,8 @@ class DQNTrainerV3(DQNTrainerV2):
 
         model_output = self.model(**batch['model_inputs'])
         
-        gather_index = t.repeat_interleave(batch['targets']['targets_idx'],
-                                            self.agent.model.nb_quantiles)
-        
-        gather_index_reshaped = gather_index.view(self.batch_size, -1).unsqueeze(1)
-
         predicted = t.gather(model_output, dim=1,
-                                index=gather_index_reshaped)
+                             index=batch['targets']['targets_idx'])
 
         loss_per_batch = self.loss(predicted, batch['targets']['targets'], weights)
 
@@ -135,7 +132,8 @@ class DQNTrainerV3(DQNTrainerV2):
         self.target_network.load_state_dict(target_network_state_dict)
 
         return loss_value.cpu().detach().item()
-        
+    
+
     @t.no_grad()
     def make_training_batch(self):
         """
@@ -177,13 +175,14 @@ class DQNTrainerV3(DQNTrainerV2):
 
             q_hat_batch = prepare_input_for_batch(need_update,
                                                   device=self.model_device,
-                                                  with_target=False)
+                                                  with_target=False,
+                                                  quantile_reg=self.agent.model.nb_quantiles)
 
             q_hat_output = self.target_network(**q_hat_batch['model_inputs']).detach()
 
             q_hat_values = t.gather(q_hat_output,
                                     dim=1,
-                                    index=q_hat_batch['targets']['targets_idx'].unsqueeze(1)).cpu()
+                                    index=q_hat_batch['targets']['targets_idx']).cpu()
 
 
             for i, data in enumerate(need_update):
@@ -198,6 +197,24 @@ class DQNTrainerV3(DQNTrainerV2):
 
         weights = t.tensor(weights, device=self.model_device)
 
-        batch = prepare_input_for_batch(batch_data, self.model_device)
+        batch = prepare_input_for_batch(batch_data,
+                                        self.model_device, 
+                                        quantile_reg=self.agent.model.nb_quantiles)
 
         return batch, data_indexes, weights
+    
+
+    def clean_previous_actions_data(self):
+        """
+        called when episode is finished to avoid adding max q_hat
+        to the final reward of the previous game
+        """
+        self.clean_action_data_buffer_and_sampling()
+
+        for element in self.previous_actions_data:
+            reward = t.tensor(element['reward']).repeat(element['estimated_action_value'].size())
+            sampling_score = self.loss(element['estimated_action_value'], reward, device='cpu')
+            self.buffer.append(element)
+            self.sampling_scores[len(self.buffer) - 1] = sampling_score
+
+        self.previous_actions_data = []
