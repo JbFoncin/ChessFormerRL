@@ -167,10 +167,13 @@ class QRModelPlayer(ModelPlayer):
         """
         Args:
             board (chess.board): the current game object
+        
         Returns:
-            str: initital and final positions as str (like 'e2e4')
-            int: action index
-            inference data: dict of tensor to be stored in the replay buffer
+            NamedTuple: object contains :
+                -The action chosen
+                -Its index
+                -The estimated quantiles of the chosen action reward
+                -Inference data used for forward pass
         """
         if random() < self.random_action_rate:
 
@@ -186,7 +189,7 @@ class QRModelPlayer(ModelPlayer):
 
         _, index = actions_scores.mean(2).max(1)
 
-        value = actions_scores[0, index.item(), :].cpu()
+        value = actions_scores[0, index.item(), :].unsqueeze(0).cpu()
 
         output = PlayerOutput(action=possible_actions[index.item()],
                               action_index=index.item(),
@@ -200,11 +203,13 @@ class QRModelPlayer(ModelPlayer):
         """
         Args:
             board (chess.Board): the current game
-
+        
         Returns:
-            str: next move as str
-            int: index of the chosen action
-            inference data: dict of tensor to be stored in the replay buffer
+            NamedTuple: object contains :
+                -The action chosen
+                -Its index
+                -The estimated quantiles of the chosen action reward
+                -Inference data used for forward pass
         """
         action, chosen_action_index, _ = super().choose_random_action(board)
 
@@ -213,7 +218,7 @@ class QRModelPlayer(ModelPlayer):
         self.model.eval()
         actions_scores = self.model(**inference_data)
         self.model.train()
-        value = actions_scores[0, chosen_action_index, :].cpu()
+        value = actions_scores[0, chosen_action_index, :].unsqueeze(0).cpu()
 
         output = PlayerOutput(action=action,
                               action_index=chosen_action_index,
