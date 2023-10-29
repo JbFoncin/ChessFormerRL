@@ -6,6 +6,8 @@ from copy import deepcopy
 
 import torch as t
 
+from tqdm import tqdm
+
 from modeling.tools import move_data_to_device, prepare_input_for_batch
 from modeling.qr_loss import QRLoss
 from reinforcement.dqn.dqn_v2 import DQNTrainerV2
@@ -219,3 +221,35 @@ class DQNTrainerV3(DQNTrainerV2):
             self.sampling_scores[len(self.buffer) - 1] = sampling_score
 
         self.previous_actions_data = []
+
+
+    def train(self, num_games):
+        """
+        The training loop.
+        
+        Args:
+            num_games (int): how much games the model will be trained on
+        """
+        step = 0
+
+        for epoch in tqdm(range(num_games)):
+
+            game_reward = 0
+
+            board = self.init_game()
+
+            game_continues = True
+
+            while game_continues:
+
+                step += 1
+
+                reward, board, game_continues = self.generate_sample(board)
+
+                game_reward += reward
+                
+                if len(self.buffer) >= self.warm_up_steps:
+                    loss = self.train_batch()
+                    self.summary_writer.add_scalar('QR_loss', loss, step)
+
+            self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
