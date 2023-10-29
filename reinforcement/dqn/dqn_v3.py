@@ -61,6 +61,8 @@ class DQNTrainerV3(DQNTrainerV2):
         self.clean_action_data_buffer_and_sampling()
 
         move_data_to_device(model_inputs, 'cpu')
+        
+        reward_tensor = t.tensor([current_reward] * self.agent.model.nb_quantiles).unsqueeze(0)
 
         if len(self.previous_actions_data) == self.nb_steps_reward:
 
@@ -87,10 +89,10 @@ class DQNTrainerV3(DQNTrainerV2):
             self.sampling_scores[len(self.buffer) - 1] = sampling_score.mean()
 
         for element in self.previous_actions_data:
-            element['reward'] += current_reward
+            element['reward'] += reward_tensor
 
         self.previous_actions_data.append({**model_inputs,
-                                           'reward': current_reward,
+                                           'reward': reward_tensor,
                                            'target_idx': current_action_index,
                                            'estimated_action_value': estimated_action_value})    
 
@@ -109,7 +111,7 @@ class DQNTrainerV3(DQNTrainerV2):
         model_output = self.model(**batch['model_inputs'])
         
         predicted = t.gather(model_output, dim=1,
-                             index=batch['targets']['targets_idx'])
+                             index=batch['targets']['targets_idx']).squeeze(1)
 
         loss_per_batch = self.loss(predicted, batch['targets']['targets'], weights)
 
@@ -186,7 +188,7 @@ class DQNTrainerV3(DQNTrainerV2):
 
 
             for i, data in enumerate(need_update):
-                data['target'] = q_hat_values[i].item() + data['reward']
+                data['target'] = q_hat_values[i, :] + data['reward']
 
         for data in others:
             data['target'] = data['reward']
@@ -212,8 +214,7 @@ class DQNTrainerV3(DQNTrainerV2):
         self.clean_action_data_buffer_and_sampling()
 
         for element in self.previous_actions_data:
-            reward = t.tensor(element['reward']).repeat(element['estimated_action_value'].size())
-            sampling_score = self.loss(element['estimated_action_value'], reward, device='cpu')
+            sampling_score = self.loss(element['estimated_action_value'], element['reward'], device='cpu')
             self.buffer.append(element)
             self.sampling_scores[len(self.buffer) - 1] = sampling_score
 
