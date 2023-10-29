@@ -38,15 +38,21 @@ def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True,
         
         if with_target:
             targets = t.cat([inf_data['target'].unsqueeze(0) for inf_data in inference_data_list],
-                            dim=0).to(device)
-        
+                            dim=0).squeeze(1).to(device)
+        else:
+            targets = None
+
     else:
         
         if with_target:
             targets = t.tensor([inf_data['target'] for inf_data in inference_data_list], device=device)
-
+        else:
+            targets = None
 
     target_mask = (starting_points_padded == PADDING_LM_ID).to(device)
+    
+    if quantile_reg:
+        target_mask = target_mask.unsqueeze(-1).repeat(1, 1, quantile_reg)
 
     batch_data = {
         'model_inputs':
