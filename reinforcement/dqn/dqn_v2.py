@@ -273,6 +273,7 @@ class DQNTrainerV2:
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
 
+
     def train_batch(self):
         """
         samples and train one batch
@@ -309,6 +310,7 @@ class DQNTrainerV2:
         self.target_network.load_state_dict(target_network_state_dict)
 
         return loss.cpu().detach().item()
+
 
     @t.no_grad()
     def make_training_batch(self):
@@ -374,6 +376,7 @@ class DQNTrainerV2:
         batch = prepare_input_for_batch(batch_data, self.model_device)
 
         return batch, data_indexes, weights
+
 
     def sample_indexes(self):
         """
