@@ -46,6 +46,7 @@ class QRLoss(Module):
         error = choice_quantile - ground_truth
         batch_size, n_quantiles = error.size()
         error = error.unsqueeze(-1).expand(batch_size, n_quantiles, n_quantiles)
+        
         huber_error = t.where(error.abs() <= self.kappa,
                               0.5 * error.pow(2),
                               self.kappa * (error.abs() - 0.5 * self.kappa))
