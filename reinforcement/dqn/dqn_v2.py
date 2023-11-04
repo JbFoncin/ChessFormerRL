@@ -27,15 +27,15 @@ class DQNTrainerV2:
                  tau):
         """
         Args:
-            model_1 (t.nn.Module): The first DQN model
-            model_2 (t.nn.Module): The second DQN model
+            model_1 (t.nn.Module): the first DQN model
+            model_2 (t.nn.Module): the second DQN model
             optimizer (t.optim.Optimizer): model optimizer
             buffer_size (int): maximum history len
-            competitor (reinforcement.players.PlayerABC derived classes): The agent opponent
+            competitor (reinforcement.players.PlayerABC derived classes): the agent opponent
             batch_size (int): number of elements per batch when training
             experiment_name (str): name of the tensorboard run
             models_device (str): device used for models
-            nb_steps_rewards (int): The number of steps to unroll Bellman equation
+            nb_steps_rewards (int): the number of steps to unroll Bellman equation
                                     for more information see https://arxiv.org/pdf/1703.01327.pdf
             warm_up_steps (int): minimum size of buffer to acquire at the beginning of the train
             alpha_sampling (float): hyperparameter for batch sampling
