@@ -6,12 +6,14 @@ A repos to explore reinforcement learning using transformers with chess game.
 
 The vanilla DQN is finished with sequential training, with GPU support. trained models will be uploaded soon
 
-The DQN v2 is finished! I am still testing it but results look good.
+The DQN v2 is finished! The training is faster than the previous version, but some improvement didn't work.
 
-I had to use a lot of tricks to make this version running in usable times. I had to do some choices making the code a bit strange right now but explanations will be added in comments. Basically, I had to compute the sampling probabilities on GPU, which may look weird but works really well.
+For example, the multi step reward is a failure. The models still have a loss increasing after a long training time.
+
+By the way the agent is still able to increase efficiently the rewards.
+
+The DQN v3, using quantile regression, does not converge. After a while, the agent sticks to bad rewards actions
 
 ## Roadmap
 
-DQN v3 : add QR-DQN
-
-Actor-Critic : A2C A3C
+The next step is to implement the reinforce algorithm to compare policy based and value based strategies.
