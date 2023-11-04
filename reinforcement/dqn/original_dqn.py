@@ -29,10 +29,13 @@ class DQNTrainer:
             model (t.nn.Module): The model to be trained
             random_action_rate (float): rate of random decisions
             buffer_size (int): maximum history len
-            update_target_q_step: number of step between q_hat network updates
+            update_target_q_step (int): number of step between q_hat network updates
             competitor (players.PlayerABC): an instance of a derived class of PlayerABC
+            batch_size (int): batch size used for model training
+            optimizer (t.nn.Optimizer): the optimizer used for the model
             experiment_name (str): name of the experiment, used for tensorboard
-            model_device(str): device to be used for target inference and training
+            model_device (str): device to be used for target inference and training
+            warm_up_steps (int): minimum history len before training
         """
         self.model = model
         self.model_device = model_device

@@ -31,8 +31,7 @@ class DQNTrainerV2:
             model_2 (t.nn.Module): The second DQN model
             optimizer (t.optim.Optimizer): model optimizer
             buffer_size (int): maximum history len
-            revert_models_nb_steps: nb steps between models switching
-            competitor (reinforcement.players.PlayerABC derived classes)
+            competitor (reinforcement.players.PlayerABC derived classes): The agent opponent
             batch_size (int): number of elements per batch when training
             experiment_name (str): name of the tensorboard run
             models_device (str): device used for models
