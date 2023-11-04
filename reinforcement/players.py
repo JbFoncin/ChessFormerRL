@@ -83,14 +83,13 @@ class DummyPlayer(PlayerABC):
 
 class ModelPlayer(PlayerABC):
     """
-    player using a model as policy
+    player using a model as policy, works with DQN or reinforce
     """
     def __init__(self, model, random_action_rate, model_device):
         """
         Args:
             color (str): 'b' for black or 'w' for white
             model (nn.Module): the policy
-
         """
         super().__init__()
 
