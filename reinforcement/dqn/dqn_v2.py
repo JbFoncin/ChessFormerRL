@@ -29,8 +29,7 @@ class DQNTrainerV2:
         Args:
             model_1 (t.nn.Module): The first DQN model
             model_2 (t.nn.Module): The second DQN model
-            optimizer_1 (t.optim.Optimizer): optimizer of model_1
-            optimizer_2 (t.optim.Optimizer): optimizer of model_2
+            optimizer (t.optim.Optimizer): model optimizer
             buffer_size (int): maximum history len
             revert_models_nb_steps: nb steps between models switching
             competitor (reinforcement.players.PlayerABC derived classes)
