@@ -71,14 +71,15 @@ class DQNTrainerV2:
 
 
     def _make_agent(self, model, model_device):
-        """creates the agent, made this way for derived class
+        """
+        creates the agent, made this way for derived classes
 
         Args:
             model (t.nn.Module derived): the model to be used to take decisions
             model_device (str): the model device
 
         Returns:
-            _type_: _description_
+            ModelPlayer: the agent
         """
         agent = ModelPlayer(model=model,
                             random_action_rate=0.0,
