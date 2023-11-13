@@ -10,7 +10,7 @@ from chess import Board
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from modeling.tools import move_data_to_device, prepare_input_for_batch
+from modeling.tools import move_data_to_device, prepare_input_for_dqn_batch
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
@@ -69,11 +69,11 @@ class ReinforceTrainer:
 
 
     @t.no_grad()
-    def update_current_episode_data(self,
-                                    model_inputs,
-                                    current_action_index,
-                                    estimated_action_value,
-                                    current_reward):
+    def update_episode_data(self,
+                            model_inputs,
+                            current_action_index,
+                            estimated_action_value,
+                            current_reward):
         """
         updates previous state target with the maximum q_hat value
 
@@ -120,11 +120,10 @@ class ReinforceTrainer:
 
             reward += endgame_reward
 
-            self.update_action_data_buffer(player_output.inference_data,
-                                           player_output.action_index,
-                                           player_output.estimated_action_value,
-                                           reward)
-            self.clean_previous_actions_data()
+            self.update_episode_data(player_output.inference_data,
+                                     player_output.action_index,
+                                     player_output.estimated_action_value,
+                                     reward)
 
             return reward, board, False
 
@@ -145,16 +144,56 @@ class ReinforceTrainer:
             else:
                 reward -= endgame_reward
 
-            self.update_action_data_buffer(player_output.inference_data,
-                                           player_output.action_index,
-                                           player_output.estimated_action_value,
-                                           reward)
+            self.update_episode_data(player_output.inference_data,
+                                     player_output.action_index,
+                                     player_output.estimated_action_value,
+                                     reward)
 
             return reward, board, False
 
-        self.update_action_data_buffer(player_output.inference_data,
-                                       player_output.action_index,
-                                       player_output.estimated_action_value,
-                                       reward)
+        self.update_episode_data(player_output.inference_data,
+                                 player_output.action_index,
+                                 player_output.estimated_action_value,
+                                 reward)
 
         return reward, board, True
+    
+    
+    def train_episode(self):
+        """
+        updates weights of the policy gradient model
+        """
+        self.optimizer.zero_grad()
+        
+        episode_batch
+    
+
+    def train(self, num_games):
+        """
+        The training loop.
+        
+        Args:
+            num_games (int): how much games the model will be trained on
+        """
+        step = 0
+
+        for epoch in tqdm(range(num_games)):
+
+            game_reward = 0
+
+            board = self.init_game()
+
+            game_continues = True
+
+            while game_continues:
+
+                step += 1
+
+                reward, board, game_continues = self.generate_sample(board)
+
+                game_reward += reward
+                
+            loss = self.train_episode()
+            self.summary_writer.add_scalar('weighted gradient', loss, step)
+
+            self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
