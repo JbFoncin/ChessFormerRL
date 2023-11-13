@@ -5,9 +5,10 @@ from chesstools.tools import (PADDING_LM_ID, get_all_encoded_pieces_and_colors,
                               get_index)
 
 
-def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True,
-                            quantile_reg=False):
-    """generates input for training from previously generated data
+def prepare_input_for_dqn_batch(inference_data_list, device='cpu', with_target=True,
+                                quantile_reg=False):
+    """
+    generates input for training from previously generated data
 
     Args:
         inference_data_list (list[dict]): the list of dict to aggregate
@@ -67,6 +68,52 @@ def prepare_input_for_batch(inference_data_list, device='cpu', with_target=True,
     }
 
     return batch_data
+
+
+def prepare_input_for_policy_gradient_batch(episode_data, max_batch_size, device='cpu'):
+    """
+    creates training data for policy gradient model
+
+    Args:
+        episode_data (list[dict]): _description_
+        device (str, optional): the device where tensor will be created. Defaults to 'cpu'.
+    """
+    nb_chunks = (len(episode_data) // max_batch_size) + 1
+    
+    pieces_ids = t.cat([ep_data['pieces_ids'] for ep_data in episode_data], dim=0).to(device)
+    colors_ids = t.cat([ep_data['colors_ids'] for ep_data in episode_data], dim=0).to(device)
+
+    starting_points = [ep_data['start_move_indexes'].squeeze(0) for ep_data in episode_data]
+    starting_points_padded = pad_sequence(starting_points, batch_first=True, padding_value=PADDING_LM_ID).to(device)
+
+    destinations = [ep_data['end_move_indexes'].squeeze(0) for ep_data in episode_data]
+    destinations_padded = pad_sequence(destinations, batch_first=True, padding_value=PADDING_LM_ID).to(device)
+    
+    rolling_reward = t.tensor([ep_data['reward'] for ep_data in episode_data], device=device)
+    
+    target_mask = (starting_points_padded == PADDING_LM_ID).to(device)
+    
+    targets_idx = t.tensor([ep_data['target_idx'] for ep_data in episode_data], device=device)
+    
+    chunked_batch_data = {
+        'models_inputs':
+            {
+                'pieces_ids': pieces_ids.chunk(nb_chunks),
+                'colors_ids': colors_ids.chunk(nb_chunks),
+                'start_moves_indexes': starting_points_padded.chunk(nb_chunks),
+                'end_move_indexes': destinations_padded.chunk(nb_chunks),
+                'target_mask': target_mask.chunk(nb_chunks)
+            },
+        'targets':
+            {
+                'rolling_rewards': rolling_reward.chunk(nb_chunks),
+                'target_idx': targets_idx.chunk(nb_chunks)
+            }
+    }
+    
+    return chunked_batch_data
+    
+
 
 def prepare_for_model_inference(board, color_map, device='cpu'):
     """
