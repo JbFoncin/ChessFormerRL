@@ -8,7 +8,7 @@ import torch as t
 
 from tqdm import tqdm
 
-from modeling.tools import move_data_to_device, prepare_input_for_batch
+from modeling.tools import move_data_to_device, prepare_input_for_dqn_batch
 from modeling.qr_loss import QRLoss
 from reinforcement.dqn.dqn_v2 import DQNTrainerV2
 from reinforcement.players import QRModelPlayer
@@ -177,7 +177,7 @@ class DQNTrainerV3(DQNTrainerV2):
 
         if need_update:
 
-            q_hat_batch = prepare_input_for_batch(need_update,
+            q_hat_batch = prepare_input_for_dqn_batch(need_update,
                                                   device=self.model_device,
                                                   with_target=False,
                                                   quantile_reg=self.agent.model.nb_quantiles)
@@ -201,7 +201,7 @@ class DQNTrainerV3(DQNTrainerV2):
 
         weights = t.tensor(weights, device=self.model_device)
 
-        batch = prepare_input_for_batch(batch_data,
+        batch = prepare_input_for_dqn_batch(batch_data,
                                         self.model_device, 
                                         quantile_reg=self.agent.model.nb_quantiles)
 
