@@ -48,6 +48,7 @@ class ChessFormerDQN(nn.Module):
         
         self.q_scorer = nn.Linear(embedding_dim, nb_quantiles)
         
+        
     def forward(self, pieces_ids, colors_ids, start_move_indexes, end_move_indexes,
                 target_mask=None):
         """
@@ -83,4 +84,33 @@ class ChessFormerDQN(nn.Module):
         
         return q_scores.squeeze(-1)
     
+
+class ChessFormerPolicyGradient(ChessFormerDQN):
+    """
+    The same model with softmax activation at the end
+    """
+    def __init__(self, *args, **kwargs):
+        """
+        just overloaded by adding a softmax activation attribute
+        """
+        super().__init__()
+        self.softmax = nn.Softmax()
+        
+        
+    def forward(self, pieces_ids, colors_ids, start_move_indexes, end_move_indexes, target_mask=None):
+        """
+        Args:
+            pieces_ids (torch.tensor[torch.Long]): id of each piece
+            colors_ids (torch.tensor[torch.Long]): color of each piece (0 or 1)
+            start_move_indexes (torch.tensor[torch.Long]): start move for each possible action
+            end_move_indexes (torch.tensor[torch.Long]): destination for each possible action
+            target_mask (torch.tensor[torch.Bool]): mask for targets to be set at -inf 
+
+        Returns:
+            torch.tensor: a tensor of size (batch, possible_actions)
+        """
+        
+        output = super().forward(pieces_ids, colors_ids, start_move_indexes, end_move_indexes, target_mask)
+        output_softmax = self.softmax(output)
+        return output_softmax    
     
