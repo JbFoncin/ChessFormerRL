@@ -93,7 +93,7 @@ class ChessFormerPolicyGradient(ChessFormerDQN):
         """
         just overloaded by adding a softmax activation attribute
         """
-        super().__init__()
+        super().__init__(*args, **kwargs)
         self.softmax = nn.Softmax()
         
         
