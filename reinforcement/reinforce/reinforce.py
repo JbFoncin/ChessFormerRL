@@ -10,7 +10,7 @@ from chess import Board
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from modeling.tools import move_data_to_device, prepare_input_for_dqn_batch
+from modeling.tools import PolicyGradientChunkedBatchGenerator, move_data_to_device 
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
@@ -19,7 +19,7 @@ class ReinforceTrainer:
     """
     Basic reinforce algorithm trainer
     """
-    def __init__(self, model, optimizer, competitor, batch_size,
+    def __init__(self, model, optimizer, competitor, max_batch_size,
                  experiment_name, model_device):
         """
         Args:
@@ -34,7 +34,7 @@ class ReinforceTrainer:
         self.model = model
         self.optimizer = optimizer
         self.model_device = model_device
-        self.batch_size = batch_size
+        self.max_batch_size = max_batch_size
         
         self.competitor = competitor
         self.agent = ModelPlayer(model=model, random_action_rate=0.0, model_device=model_device)
@@ -165,7 +165,24 @@ class ReinforceTrainer:
         """
         self.optimizer.zero_grad()
         
-        episode_batch
+        batch_iterator = PolicyGradientChunkedBatchGenerator(self.current_episode_data,
+                                                             self.max_batch_size,
+                                                             device=self.model_device)
+        
+        self.model.train()
+        
+        for chunk in batch_iterator:
+            
+            model_inputs = chunk['model_inputs']
+            targets = chunk['target']
+            
+            model_output = self.model(**model_inputs)
+            
+            model_score = t.gather(model_output, dim=1,
+                                   index=targets['targets_idx']).squeeze(1)
+            
+            #TODO: resume work here
+            
     
 
     def train(self, num_games):
@@ -194,6 +211,7 @@ class ReinforceTrainer:
                 game_reward += reward
                 
             loss = self.train_episode()
+            
             self.summary_writer.add_scalar('weighted gradient', loss, step)
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
