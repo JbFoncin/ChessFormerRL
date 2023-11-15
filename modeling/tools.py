@@ -39,7 +39,11 @@ class PolicyGradientChunkedBatchGenerator:
                 output['targets'][key] = self.chunked_batch_data_targets[key][self.counter]
         
         except IndexError:
-            raise StopIteration()        
+            raise StopIteration()
+        
+        self.counter += 1
+        
+        return output        
                 
                 
     @staticmethod
