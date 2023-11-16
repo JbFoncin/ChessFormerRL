@@ -190,6 +190,8 @@ class ReinforceTrainer:
             
         self.optimizer.step()
         
+        self.current_episode_data = [] # empty episode data
+        
         return loss.item()
     
 
