@@ -171,18 +171,26 @@ class ReinforceTrainer:
         
         self.model.train()
         
+        loss = 0
+        
         for chunk in batch_iterator:
             
             model_inputs = chunk['model_inputs']
-            targets = chunk['target']
+            targets = chunk['targets']
             
             model_output = self.model(**model_inputs)
             
-            model_score = t.gather(model_output, dim=1,
-                                   index=targets['targets_idx']).squeeze(1)
+            model_score, _ = model_output.max(axis=1)
             
-            #TODO: resume work here
+            loss -= (t.log(model_score) * targets['rolling_rewards']).mean()
             
+            loss /= len(batch_iterator)
+            
+            loss.backward()
+            
+        self.optimizer.step()
+        
+        return loss.item()
     
 
     def train(self, num_games):
@@ -212,6 +220,6 @@ class ReinforceTrainer:
                 
             loss = self.train_episode()
             
-            self.summary_writer.add_scalar('weighted gradient', loss, step)
+            self.summary_writer.add_scalar('weighted gradient', loss, epoch)
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)

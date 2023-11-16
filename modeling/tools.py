@@ -16,13 +16,19 @@ class PolicyGradientChunkedBatchGenerator:
             max_batch_size (int): maximum size of each chunk for gradient accumulation
             device (str, optional): the device where tensor will be created. Defaults to 'cpu'.
         """
-        chunked_batch_data = self.prepare_input_for_policy_gradient_batch(episode_data,
-                                                                          max_batch_size,
-                                                                          device)
+        chunked_batch_data, self.nb_chunks = self.prepare_input_for_policy_gradient_batch(episode_data,
+                                                                                          max_batch_size,
+                                                                                          device)
         
         self.chunked_batch_data_inputs, self.chunked_batch_data_targets = chunked_batch_data
         
         self.counter = 0
+        
+    
+    def __len__(self):
+        """used to get loss normalization factor for gradient accumulation
+        """
+        return self.nb_chunks
         
     
     def __iter__(self):
@@ -43,7 +49,7 @@ class PolicyGradientChunkedBatchGenerator:
         
         self.counter += 1
         
-        return output        
+        yield output        
                 
                 
     @staticmethod
@@ -75,14 +81,14 @@ class PolicyGradientChunkedBatchGenerator:
         
         chunked_batch_data_inputs = {'pieces_ids': pieces_ids.chunk(nb_chunks),
                                      'colors_ids': colors_ids.chunk(nb_chunks),
-                                     'start_moves_indexes': starting_points_padded.chunk(nb_chunks),
+                                     'start_move_indexes': starting_points_padded.chunk(nb_chunks),
                                      'end_move_indexes': destinations_padded.chunk(nb_chunks),
                                      'target_mask': target_mask.chunk(nb_chunks)}
 
         chunked_batch_data_targets =  {'rolling_rewards': rolling_reward.chunk(nb_chunks),
                                        'action_index': targets_idx.chunk(nb_chunks)}
         
-        return chunked_batch_data_inputs, chunked_batch_data_targets
+        return (chunked_batch_data_inputs, chunked_batch_data_targets), nb_chunks
 
 
 def prepare_input_for_dqn_batch(inference_data_list, device='cpu', with_target=True,

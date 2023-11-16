@@ -89,12 +89,15 @@ class ChessFormerPolicyGradient(ChessFormerDQN):
     """
     The same model with softmax activation at the end
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, nb_encoder_layers, nb_decoder_layers, embedding_dim,
+                 bottleneck_hidden_dim, dim_per_head, nb_head):
         """
         just overloaded by adding a softmax activation attribute
         """
-        super().__init__(*args, **kwargs)
-        self.softmax = nn.Softmax()
+        super().__init__(nb_encoder_layers, nb_decoder_layers, embedding_dim,
+                         bottleneck_hidden_dim, dim_per_head, nb_head, nb_quantiles=1)
+        
+        self.softmax = nn.Softmax(dim=-1)
         
         
     def forward(self, pieces_ids, colors_ids, start_move_indexes, end_move_indexes, target_mask=None):
