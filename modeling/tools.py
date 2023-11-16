@@ -101,7 +101,6 @@ def prepare_input_for_dqn_batch(inference_data_list, device='cpu', with_target=T
         device (str): the device to create the tensors on
         with_target (bool): True if target is required
         quantile_reg (bool or int): False if target is a scalar. Else, target is a tensor of quantiles.
-                                    In this case
                                     Default to False
 
     Returns:
