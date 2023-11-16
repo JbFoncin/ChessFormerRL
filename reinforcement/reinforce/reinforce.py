@@ -88,7 +88,7 @@ class ReinforceTrainer:
         for element in self.current_episode_data:
             element['reward'] += current_reward
 
-        self.self.current_episode_data.append({**model_inputs,
+        self.current_episode_data.append({**model_inputs,
                                                'reward': current_reward,
                                                'target_idx': current_action_index,
                                                'estimated_action_value': estimated_action_value})
