@@ -71,16 +71,16 @@ class PolicyGradientChunkedBatchGenerator:
         
         target_mask = (starting_points_padded == PADDING_LM_ID).to(device)
         
-        targets_idx = t.tensor([ep_data['target_idx'] for ep_data in episode_data], device=device)
+        targets_idx = t.tensor([ep_data['action_index'] for ep_data in episode_data], device=device)
         
         chunked_batch_data_inputs = {'pieces_ids': pieces_ids.chunk(nb_chunks),
-                                    'colors_ids': colors_ids.chunk(nb_chunks),
-                                    'start_moves_indexes': starting_points_padded.chunk(nb_chunks),
-                                    'end_move_indexes': destinations_padded.chunk(nb_chunks),
-                                    'target_mask': target_mask.chunk(nb_chunks)}
+                                     'colors_ids': colors_ids.chunk(nb_chunks),
+                                     'start_moves_indexes': starting_points_padded.chunk(nb_chunks),
+                                     'end_move_indexes': destinations_padded.chunk(nb_chunks),
+                                     'target_mask': target_mask.chunk(nb_chunks)}
 
         chunked_batch_data_targets =  {'rolling_rewards': rolling_reward.chunk(nb_chunks),
-                                       'target_idx': targets_idx.chunk(nb_chunks)}
+                                       'action_index': targets_idx.chunk(nb_chunks)}
         
         return chunked_batch_data_inputs, chunked_batch_data_targets
 

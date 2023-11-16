@@ -89,9 +89,9 @@ class ReinforceTrainer:
             element['reward'] += current_reward
 
         self.current_episode_data.append({**model_inputs,
-                                               'reward': current_reward,
-                                               'target_idx': current_action_index,
-                                               'estimated_action_value': estimated_action_value})
+                                          'reward': current_reward,
+                                          'action_index': current_action_index,
+                                          'estimated_action_value': estimated_action_value})
  
 
     def generate_sample(self, board):
