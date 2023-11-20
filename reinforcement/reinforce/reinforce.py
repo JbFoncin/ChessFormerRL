@@ -222,6 +222,6 @@ class ReinforceTrainer:
                 
             loss = self.train_episode()
             
-            self.summary_writer.add_scalar('weighted gradient', loss, epoch)
+            self.summary_writer.add_scalar('Weighted policy scores', loss, epoch)
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
