@@ -8,7 +8,8 @@ import torch as t
 
 from tqdm import tqdm
 
-from modeling.tools import move_data_to_device, prepare_input_for_dqn_batch
+from modeling.tools.shared import move_data_to_device
+from modeling.tools.dqn import prepare_input_for_dqn_batch
 from modeling.qr_loss import QRLoss
 from reinforcement.dqn.dqn_v2 import DQNTrainerV2
 from reinforcement.players import QRModelPlayer

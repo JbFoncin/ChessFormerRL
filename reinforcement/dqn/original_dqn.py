@@ -12,7 +12,8 @@ from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from modeling.tools import move_data_to_device, prepare_input_for_dqn_batch
+from modeling.tools.shared import move_data_to_device
+from modeling.tools.dqn import prepare_input_for_dqn_batch
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 

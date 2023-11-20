@@ -10,7 +10,8 @@ from chess import Board
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from modeling.tools import PolicyGradientChunkedBatchGenerator, move_data_to_device 
+from modeling.tools.policy_gradient import PolicyGradientChunkedBatchGenerator
+from modeling.tools.shared import move_data_to_device 
 from reinforcement.players import ModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
