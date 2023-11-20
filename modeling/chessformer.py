@@ -1,7 +1,8 @@
 from torch import nn
 
 from .layers import (ActionDecoderLayer, BoardEncoderLayer,
-                     ChessFormerDecoderEmbedding, ChessFormerEncoderEmbedding)
+                     ChessFormerDecoderEmbedding, ChessFormerEncoderEmbedding,
+                     ChessFormerEncoderEmbeddingAdvantage)
 
 
 class ChessFormerDQN(nn.Module):
@@ -32,6 +33,7 @@ class ChessFormerDQN(nn.Module):
                                      dim_per_head,
                                      bottleneck_hidden_dim)
                    for _ in range(nb_encoder_layers)]
+        
         self.encoder = nn.ModuleList(encoder)
         
         self.final_encoder_ln = nn.LayerNorm(embedding_dim)        
@@ -87,7 +89,7 @@ class ChessFormerDQN(nn.Module):
 
 class ChessFormerPolicyGradient(ChessFormerDQN):
     """
-    The same model with softmax activation at the end
+    The same model as DQN with softmax activation at the end
     """
     def __init__(self, nb_encoder_layers, nb_decoder_layers, embedding_dim,
                  bottleneck_hidden_dim, dim_per_head, nb_head):
@@ -117,3 +119,97 @@ class ChessFormerPolicyGradient(ChessFormerDQN):
         output_softmax = self.softmax(output)
         return output_softmax    
     
+    
+class ChessFormerA2C:
+    """
+    Advantage actor critic. 
+    Uses two decoders, one for policy and other for action value.
+    """
+    def __init__(self, nb_encoder_layers, nb_decoder_layers_policy, 
+                 nb_decoder_layers_value, embedding_dim, bottleneck_hidden_dim, 
+                 dim_per_head, nb_head):
+        """
+        Args:
+            nb_encoder_layers (int): number of encoder layers
+            nb_decoder_layers_policy (int): number of decoder layers for policy
+            nb_decoder_layers_value (int): number of decoder layers for action value
+            embedding_dim (int): embedding size
+            bottleneck_hidden_dim (int): hidden size in bottleneck
+            dim_per_head (int): head size
+            nb_head (int): number of heads
+        """
+        
+        super().__init__()
+        
+        self.encoder_embeddings = ChessFormerEncoderEmbeddingAdvantage(embedding_dim)
+        
+        encoder = [BoardEncoderLayer(embedding_dim,
+                                     nb_head,
+                                     dim_per_head,
+                                     bottleneck_hidden_dim)
+                   for _ in range(nb_encoder_layers)]
+        
+        self.encoder = nn.ModuleList(encoder)
+        
+        self.state_value_linear = nn.Linear(embedding_dim, 1)
+        
+        self.final_encoder_ln = nn.LayerNorm(embedding_dim)        
+        
+        self.decoder_embeddings = ChessFormerDecoderEmbedding(embedding_dim)
+        
+        self.policy_decoder = [ActionDecoderLayer(embedding_dim,
+                                                  nb_head,
+                                                  dim_per_head,
+                                                  bottleneck_hidden_dim)
+                               for _ in range(nb_decoder_layers_policy)]
+        
+        self.policy_linear(embedding_dim, 1)
+        
+        self.policy_softmax = nn.Softmax(dim=-1)
+        
+        self.value_decoder = [ActionDecoderLayer(embedding_dim,
+                                                 nb_head,
+                                                 dim_per_head,
+                                                 bottleneck_hidden_dim)
+                              for _ in range(nb_decoder_layers_policy)]
+        
+        self.advantage_linear = nn.Linear(embedding_dim, 1)
+        
+        
+    def forward(self, pieces_ids, colors_ids, start_move_indexes, end_move_indexes,
+                target_mask=None):
+            
+        hidden_state_encoder = self.encoder_embeddings(pieces_ids, colors_ids)
+        
+        for encoder_layer in self.encoder:
+            hidden_state_encoder = encoder_layer(hidden_state_encoder)
+            
+        hidden_state_encoder = self.final_encoder_ln(hidden_state_encoder) # I don't know if it's really useful
+        
+        state_representation = hidden_state_encoder[:, 0, :]
+        
+        state_value = self.state_value_linear(state_representation)
+        
+        hidden_state_decoder_policy = self.decoder_embeddings(start_move_indexes, end_move_indexes)
+        
+        hidden_state_decoder_value = hidden_state_decoder_policy.clone()
+        
+        for policy_decoder_layer in self.policy_decoder:
+            
+            hidden_state_decoder_policy = policy_decoder_layer(hidden_state_encoder,
+                                                               hidden_state_decoder_policy)
+            
+        policy_values = self.policy_linear(hidden_state_decoder_policy)
+        
+        for value_decoder_layer in self.value_decoder:
+            
+            hidden_state_decoder_value = value_decoder_layer(hidden_state_encoder,
+                                                             hidden_state_decoder_value)
+            
+        advantages_values = self.advantage_linear_linear(hidden_state_decoder_value)
+        
+        if target_mask is not None:
+            policy_values.squeeze(2).masked_fill_(target_mask, float('-inf'))
+            advantages_values.squeeze(2).masked_fill_(target_mask, float('-inf'))
+        
+        return state_value, policy_values, advantages_values

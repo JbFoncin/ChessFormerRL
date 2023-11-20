@@ -1,7 +1,7 @@
 import torch as t
 from torch import nn
 
-from chesstools.tools import BOARD_INDEXES
+from chesstools.tools import BOARD_INDEXES, BOARD_INDEXES_ADVANTAGE
 
 from .sublayers import BottleNeck, ResidualMultiHeadAttention
 
@@ -22,6 +22,36 @@ class ChessFormerEncoderEmbedding(nn.Module):
         self.piece_emb = nn.Embedding(7, embedding_dim=embedding_dim)
         self.color_emb = nn.Embedding(3, embedding_dim=embedding_dim)
         self.register_buffer('indexes', t.tensor(BOARD_INDEXES, dtype=t.long))
+
+    def forward(self, pieces_ids, color_ids):
+        """
+        Args:
+            pieces_ids (torch.tensor): id of each piece
+            color_ids (torch.tensor): color of each piece (0 for empty box, 1 for player piece, 2 for competitor piece)
+        Returns:
+            torch.tensor: tensor of dim (64 * embedding_dim)
+        """
+        return self.position_emb(self.indexes) + self.piece_emb(pieces_ids) + self.color_emb(color_ids)
+
+
+class ChessFormerEncoderEmbeddingAdvantage(nn.Module):
+    """
+    Embedding layer for positional, color and piece encoding.
+    The input has a length of 65 instead of 64 because the first token
+    is an estimation of the state value.
+    """
+    def __init__(self, embedding_dim):
+        """
+        Args:
+            embedding_dim (int): size of the embeddings
+        """
+
+        super().__init__()
+
+        self.position_emb = nn.Embedding(64, embedding_dim=embedding_dim)
+        self.piece_emb = nn.Embedding(7, embedding_dim=embedding_dim)
+        self.color_emb = nn.Embedding(3, embedding_dim=embedding_dim)
+        self.register_buffer('indexes', t.tensor(BOARD_INDEXES_ADVANTAGE, dtype=t.long))
 
     def forward(self, pieces_ids, color_ids):
         """
