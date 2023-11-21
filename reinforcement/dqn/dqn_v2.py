@@ -206,6 +206,7 @@ class DQNTrainerV2:
                                            player_output.action_index,
                                            player_output.estimated_action_value,
                                            reward)
+            
             self.clean_previous_actions_data()
 
             return reward, board, False
