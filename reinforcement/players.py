@@ -229,11 +229,11 @@ class PolicyGradientModelPlayer(PlayerABC):
 
         policy_scores = policy_scores.squeeze(1)
 
-        chosen_action_value, chosen_action_index = policy_scores.cpu().topk(1)
+        policy_score, chosen_action_index = policy_scores.cpu().topk(1)
 
         output = PlayerOutputPG(action=possible_actions[chosen_action_index.item()],
                                 action_index=chosen_action_index.item(),
-                                policy_score=chosen_action_value.item(),
+                                policy_score=policy_score.item(),
                                 inference_data=inference_data)
 
         return output
