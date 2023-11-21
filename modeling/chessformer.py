@@ -171,7 +171,7 @@ class ChessFormerA2C:
                                                  nb_head,
                                                  dim_per_head,
                                                  bottleneck_hidden_dim)
-                              for _ in range(nb_decoder_layers_policy)]
+                              for _ in range(nb_decoder_layers_value)]
         
         self.advantage_linear = nn.Linear(embedding_dim, 1)
         
@@ -211,5 +211,7 @@ class ChessFormerA2C:
         if target_mask is not None:
             policy_values.squeeze(2).masked_fill_(target_mask, float('-inf'))
             advantages_values.squeeze(2).masked_fill_(target_mask, float('-inf'))
+            
+        policy_scores = self.policy_softmax(policy_values)
         
-        return state_value, policy_values, advantages_values
+        return state_value, policy_scores, advantages_values

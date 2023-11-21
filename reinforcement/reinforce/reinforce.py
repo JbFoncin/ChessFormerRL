@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from modeling.tools.policy_gradient import PolicyGradientChunkedBatchGenerator
 from modeling.tools.shared import move_data_to_device 
-from reinforcement.players import ModelPlayer
+from reinforcement.players import PolicyGradientModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
@@ -38,7 +38,9 @@ class ReinforceTrainer:
         self.max_batch_size = max_batch_size
         
         self.competitor = competitor
-        self.agent = ModelPlayer(model=model, random_action_rate=0.0, model_device=model_device)
+        self.agent = PolicyGradientModelPlayer(model=model,
+                                               random_action_rate=0.0,
+                                               model_device=model_device)
         
         self.current_episode_data = []
         
@@ -73,7 +75,7 @@ class ReinforceTrainer:
     def update_episode_data(self,
                             model_inputs,
                             current_action_index,
-                            estimated_action_value,
+                            policy_score,
                             current_reward):
         """
         updates previous state target with the maximum q_hat value
@@ -81,7 +83,7 @@ class ReinforceTrainer:
         Args:
             model_inputs (dict[str, torch.tensor]): model inputs
             current_action_index (int): index of chosen action
-            estimated_action_value (float): the softmax output associated with current action
+            policy_score (float): the softmax output associated with current action
             current_reward (float): reward associated with current state and current action
         """
         move_data_to_device(model_inputs, 'cpu')
@@ -92,7 +94,7 @@ class ReinforceTrainer:
         self.current_episode_data.append({**model_inputs,
                                           'reward': current_reward,
                                           'action_index': current_action_index,
-                                          'estimated_action_value': estimated_action_value})
+                                          'policy_score': policy_score})
  
 
     def generate_sample(self, board):
@@ -123,7 +125,7 @@ class ReinforceTrainer:
 
             self.update_episode_data(player_output.inference_data,
                                      player_output.action_index,
-                                     player_output.estimated_action_value,
+                                     player_output.policy_score, #it should be action_score, will be updated later
                                      reward)
 
             return reward, board, False
@@ -147,14 +149,14 @@ class ReinforceTrainer:
 
             self.update_episode_data(player_output.inference_data,
                                      player_output.action_index,
-                                     player_output.estimated_action_value,
+                                     player_output.policy_score,
                                      reward)
 
             return reward, board, False
 
         self.update_episode_data(player_output.inference_data,
                                  player_output.action_index,
-                                 player_output.estimated_action_value,
+                                 player_output.policy_score,
                                  reward)
 
         return reward, board, True

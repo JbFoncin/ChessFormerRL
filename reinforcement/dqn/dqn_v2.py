@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from modeling.tools.shared import move_data_to_device
 from modeling.tools.dqn import prepare_input_for_dqn_batch
-from reinforcement.players import ModelPlayer
+from reinforcement.players import DQNModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
@@ -82,9 +82,9 @@ class DQNTrainerV2:
         Returns:
             ModelPlayer: the agent
         """
-        agent = ModelPlayer(model=model,
-                            random_action_rate=0.0,
-                            model_device=model_device)
+        agent = DQNModelPlayer(model=model,
+                               random_action_rate=0.0,
+                               model_device=model_device)
         
         return agent
 

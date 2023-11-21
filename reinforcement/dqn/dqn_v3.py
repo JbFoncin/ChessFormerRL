@@ -12,7 +12,7 @@ from modeling.tools.shared import move_data_to_device
 from modeling.tools.dqn import prepare_input_for_dqn_batch
 from modeling.qr_loss import QRLoss
 from reinforcement.dqn.dqn_v2 import DQNTrainerV2
-from reinforcement.players import QRModelPlayer
+from reinforcement.players import QRDQNModelPlayer
 
 
 class DQNTrainerV3(DQNTrainerV2):
@@ -39,9 +39,9 @@ class DQNTrainerV3(DQNTrainerV2):
         Returns:
             reinforcement.players.QRModelPlayer: the agent
         """
-        agent = QRModelPlayer(model=model,
-                              random_action_rate=0.0,
-                              model_device=model_device)
+        agent = QRDQNModelPlayer(model=model,
+                                 random_action_rate=0.0,
+                                 model_device=model_device)
         
         return agent
 

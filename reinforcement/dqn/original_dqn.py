@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from modeling.tools.shared import move_data_to_device
 from modeling.tools.dqn import prepare_input_for_dqn_batch
-from reinforcement.players import ModelPlayer
+from reinforcement.players import DQNModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
@@ -24,7 +24,7 @@ class DQNTrainer:
     """
     def __init__(self, model, random_action_rate, buffer_size,
                  update_target_q_step, competitor, batch_size,
-                 optimizer, experiment_name, model_device, warm_up_steps):
+                 optimizer, experiment_name, models_device, warm_up_steps):
         """
         Args:
             model (t.nn.Module): The model to be trained
@@ -35,14 +35,14 @@ class DQNTrainer:
             batch_size (int): batch size used for model training
             optimizer (t.nn.Optimizer): the optimizer used for the model
             experiment_name (str): name of the experiment, used for tensorboard
-            model_device (str): device to be used for target inference and training
+            models_device (str): device to be used for target inference and training
             warm_up_steps (int): minimum history len before training
         """
         self.model = model
-        self.model_device = model_device
+        self.models_device = models_device
         self._set_frozen_model(model)
         self.batch_size = batch_size
-        self.loss_criterion = nn.MSELoss().to(model_device)
+        self.loss_criterion = nn.MSELoss().to(models_device)
         self.optimizer = optimizer
 
         self.update_target_q_step = update_target_q_step
@@ -53,9 +53,9 @@ class DQNTrainer:
 
         self.competitor = competitor
         
-        self.agent = ModelPlayer(model=self.model,
-                                 random_action_rate=random_action_rate,
-                                 model_device=model_device)
+        self.agent = DQNModelPlayer(model=self.model,
+                                    random_action_rate=random_action_rate,
+                                    model_device=models_device)
         
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
 
@@ -173,16 +173,16 @@ class DQNTrainer:
             else:
                 reward -= endgame_reward
 
-            self.update_action_data_buffer(competitor_output.inference_data,
-                                           competitor_output.action_index, 
+            self.update_action_data_buffer(player_output.inference_data,
+                                           player_output.action_index, 
                                            reward)
 
             self.clean_previous_action_data()
 
             return reward, board, False
 
-        self.update_action_data_buffer(competitor_output.inference_data,
-                                       competitor_output.action_index,
+        self.update_action_data_buffer(player_output.inference_data,
+                                       player_output.action_index,
                                        reward)
 
         return reward, board, True
@@ -216,6 +216,7 @@ class DQNTrainer:
                     self._set_frozen_model(self.model)
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
+            
 
     def train_batch(self):
         """
@@ -240,6 +241,7 @@ class DQNTrainer:
         self.optimizer.step()
 
         return loss.cpu().detach().item()
+    
 
     def make_training_batch(self):
         """
@@ -259,8 +261,8 @@ class DQNTrainer:
                 others.append(data)
 
         q_hat_batch = prepare_input_for_dqn_batch(need_update,
-                                              device=self.model_device,
-                                              with_target=False)
+                                                  device=self.models_device,
+                                                  with_target=False)
 
         max_q_hat, _ = self.frozen_model(**q_hat_batch['model_inputs']).max(1)
 
@@ -274,6 +276,6 @@ class DQNTrainer:
 
         batch_data = need_update + others
 
-        batch = prepare_input_for_dqn_batch(batch_data, self.model_device)
+        batch = prepare_input_for_dqn_batch(batch_data, self.models_device)
 
         return batch

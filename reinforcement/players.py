@@ -5,41 +5,63 @@ from random import random
 import torch as t
 from chess import BLACK, WHITE
 
-from modeling.tools import prepare_for_model_inference
+from modeling.tools.shared import prepare_for_model_inference
 
 WHITE_COLOR_MAPPING = {None: 0, 'w': 1, 'b': 2}
 BLACK_COLOR_MAPPING = {None: 0, 'b': 1, 'w': 2}
 
-PlayerOutput = namedtuple('PlayerOutput',
-                          field_names=['action',
-                                       'action_index',
-                                       'inference_data',
-                                       'estimated_action_value',
-                                       'model_used'],
-                          defaults=[None,
-                                    None,
-                                    None,
-                                    None,
-                                    None])
+#The PlayerOutputDQN and PlayerOutputPG behave the same way,
+#the only difference is with the labels as estimated action value can
+#be confusing when working with policy gradients
+PlayerOutputDQN = namedtuple('PlayerOutputDQN',
+                             field_names=['action',
+                                          'action_index',
+                                          'inference_data',
+                                          'estimated_action_value',
+                                          'model_used'],
+                             defaults=[None,
+                                       None,
+                                       None,
+                                       None,
+                                       None])
+
+
+#PG means PolicyGradient
+PlayerOutputPG = namedtuple('PlayerOutput',
+                            field_names=['action',
+                                         'action_index',
+                                         'inference_data',
+                                         'policy_score',
+                                         'model_used'],
+                            defaults=[None,
+                                      None,
+                                      None,
+                                      None,
+                                      None])
+
+
+PlayerOutputA2C = namedtuple('PlayerOutputA2C',
+                             field_names=['action',
+                                          'action_index',
+                                          'inference_data',
+                                          'estimated_action_value',
+                                          'policy_score',
+                                          'state_value'],
+                             defaults=[None,
+                                       None,
+                                       None,
+                                       None,
+                                       None,
+                                       None])
+
 
 class PlayerABC(ABC):
+    """
+    abstract baseclass used for all players
+    """
     def __init__(self, *args, **kwargs):
         self.color_map = None
         self.color = None
-
-    def choose_random_action(self, board):
-        """
-        Args:
-            board (chess.Board): the current game state
-
-        Returns:
-            PlayerOutput
-        """
-        actions = self.get_possible_actions(board)
-        action_index = int(random() * len(actions))
-        output = PlayerOutput(action=actions[action_index],
-                              action_index=action_index)
-        return output
 
     @staticmethod
     def get_possible_actions(board):
@@ -53,7 +75,8 @@ class PlayerABC(ABC):
         return [str(move) for move in board.legal_moves]
 
     def set_color(self, color):
-        """set player color
+        """
+        set player color
 
         Args:
             color (bool): True for white, False for black
@@ -79,9 +102,23 @@ class DummyPlayer(PlayerABC):
             int: action index
         """
         return self.choose_random_action(board)
+    
+    def choose_random_action(self, board):
+        """
+        Args:
+            board (chess.Board): the current game state
+
+        Returns:
+            PlayerOutput
+        """
+        actions = self.get_possible_actions(board)
+        action_index = int(random() * len(actions))
+        output = PlayerOutputDQN(action=actions[action_index],
+                                 action_index=action_index)
+        return output
 
 
-class ModelPlayer(PlayerABC):
+class DQNModelPlayer(PlayerABC):
     """
     player using a model as policy, works with DQN or reinforce
     """
@@ -123,10 +160,10 @@ class ModelPlayer(PlayerABC):
 
         chosen_action_value, chosen_action_index = actions_scores.cpu().topk(1)
 
-        output = PlayerOutput(action=possible_actions[chosen_action_index.item()],
-                              action_index=chosen_action_index.item(),
-                              estimated_action_value=chosen_action_value.item(),
-                              inference_data=inference_data)
+        output = PlayerOutputDQN(action=possible_actions[chosen_action_index.item()],
+                                 action_index=chosen_action_index.item(),
+                                 estimated_action_value=chosen_action_value.item(),
+                                 inference_data=inference_data)
 
         return output
 
@@ -149,15 +186,60 @@ class ModelPlayer(PlayerABC):
         actions_scores = self.model(**inference_data)
         self.model.train()
 
-        output = PlayerOutput(action=action,
-                              action_index=chosen_action_index,
-                              estimated_action_value=actions_scores[0, chosen_action_index].cpu().item(),
-                              inference_data=inference_data)
+        output = PlayerOutputDQN(action=action,
+                                 action_index=chosen_action_index,
+                                 estimated_action_value=actions_scores[0, chosen_action_index].cpu().item(),
+                                 inference_data=inference_data)
+
+        return output
+    
+    
+class PolicyGradientModelPlayer(PlayerABC):
+    """
+    player using a model as policy, works with DQN or reinforce
+    """
+    def __init__(self, model, random_action_rate, model_device):
+        """
+        Args:
+            color (str): 'b' for black or 'w' for white
+            model (nn.Module): the policy
+        """
+        super().__init__()
+
+        self.model = model
+        self.model_device = model_device
+
+    @t.no_grad()
+    def choose_action(self, board):
+        """
+        Args:
+            board (chess.board): the current game object
+        Returns:
+            str: initital and final positions as str (like 'e2e4')
+            int: action index
+            inference data: dict of tensor to be stored in the replay buffer
+        """
+        possible_actions = self.get_possible_actions(board)
+
+        inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
+
+        self.model.eval()
+        policy_scores = self.model(**inference_data)
+        self.model.train()
+
+        policy_scores = policy_scores.squeeze(1)
+
+        chosen_action_value, chosen_action_index = policy_scores.cpu().topk(1)
+
+        output = PlayerOutputPG(action=possible_actions[chosen_action_index.item()],
+                                action_index=chosen_action_index.item(),
+                                policy_score=chosen_action_value.item(),
+                                inference_data=inference_data)
 
         return output
 
 
-class QRModelPlayer(ModelPlayer):
+class QRDQNModelPlayer(DQNModelPlayer):
     """
     Player using a quantile regression model
     """
@@ -190,10 +272,10 @@ class QRModelPlayer(ModelPlayer):
 
         value = actions_scores[0, index.item(), :].unsqueeze(0).cpu()
 
-        output = PlayerOutput(action=possible_actions[index.item()],
-                              action_index=index.item(),
-                              estimated_action_value=value,
-                              inference_data=inference_data)
+        output = PlayerOutputDQN(action=possible_actions[index.item()],
+                                 action_index=index.item(),
+                                 estimated_action_value=value,
+                                 inference_data=inference_data)
 
         return output
 
@@ -218,10 +300,10 @@ class QRModelPlayer(ModelPlayer):
         actions_scores = self.model(**inference_data)
         self.model.train()
         value = actions_scores[0, chosen_action_index, :].unsqueeze(0).cpu()
-
-        output = PlayerOutput(action=action,
-                              action_index=chosen_action_index,
-                              estimated_action_value=value,
-                              inference_data=inference_data)
+        #The action value is now the estimated quantiles of the Q function
+        output = PlayerOutputDQN(action=action,
+                                 action_index=chosen_action_index,
+                                 estimated_action_value=value,
+                                 inference_data=inference_data)
 
         return output
