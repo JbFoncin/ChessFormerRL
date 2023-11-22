@@ -64,9 +64,9 @@ class DQNTrainer:
         updates previous state target with the maximum q_hat value
 
         Args:
-            q_hat_max (float): _description_
             model_inputs (dict[str, torch.Tensor]): model inputs
-            reward (float): reward associated with current state and action
+            current_action (int): index of chosen action
+            current_reward (float): reward associated with current state and action
         """
         move_data_to_device(model_inputs, 'cpu')
 
