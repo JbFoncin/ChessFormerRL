@@ -46,7 +46,7 @@ class DQNTrainer:
         self.optimizer = optimizer
 
         self.update_target_q_step = update_target_q_step
-        self.warm_up_steps = warm_up_steps
+        self.warm_up_steps = max(warm_up_steps, batch_size)
 
         self.buffer = deque(maxlen=buffer_size)
         self.previous_action_data = None
@@ -208,11 +208,11 @@ class DQNTrainer:
                 reward, board, game_continues = self.generate_sample(board)
                 game_reward += reward
 
-                if len(self.buffer) > self.batch_size:
+                if len(self.buffer) > self.warm_up_steps:
                     loss = self.train_batch()
                     self.summary_writer.add_scalar('MSE', loss, step)
 
-                if step > self.warm_up_steps:
+                if step % self.update_target_q_step == 0:
                     self._set_frozen_model(self.model)
 
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
