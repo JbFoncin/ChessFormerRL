@@ -125,7 +125,7 @@ class ReinforceTrainer:
 
             self.update_episode_data(player_output.inference_data,
                                      player_output.action_index,
-                                     player_output.policy_score, #it should be action_score, will be updated later
+                                     player_output.policy_score,
                                      reward)
 
             return reward, board, False
