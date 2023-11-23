@@ -155,7 +155,9 @@ class ChessFormerA2C:
         
         self.final_encoder_ln = nn.LayerNorm(embedding_dim)        
         
-        self.decoder_embeddings = ChessFormerDecoderEmbedding(embedding_dim)
+        self.decoder_embeddings_policy = ChessFormerDecoderEmbedding(embedding_dim)
+        
+        self.decoder_embeddings_value = ChessFormerDecoderEmbedding(embedding_dim)
         
         self.policy_decoder = [ActionDecoderLayer(embedding_dim,
                                                   nb_head,
@@ -177,7 +179,18 @@ class ChessFormerA2C:
         
         
     def forward(self, pieces_ids, colors_ids, start_move_indexes, end_move_indexes,
-                target_mask=None):
+                target_mask=None, state_value_only=False):
+        """
+        Args:
+            pieces_ids (torch.tensor[torch.Long]): id of each piece
+            colors_ids (torch.tensor[torch.Long]): color of each piece (0 or 1)
+            start_move_indexes (torch.tensor[torch.Long]): start move for each possible action
+            end_move_indexes (torch.tensor[torch.Long]): destination for each possible action
+            target_mask (torch.tensor[torch.Bool]): mask for targets to be set at -inf 
+
+        Returns:
+            torch.tensor: a tensor of size (batch, possible_actions)
+        """
             
         hidden_state_encoder = self.encoder_embeddings(pieces_ids, colors_ids)
         
@@ -190,9 +203,14 @@ class ChessFormerA2C:
         
         state_value = self.state_value_linear(state_representation)
         
-        hidden_state_decoder_policy = self.decoder_embeddings(start_move_indexes, end_move_indexes)
+        if state_value_only:
+            return state_value
         
-        hidden_state_decoder_value = hidden_state_decoder_policy.clone()
+        hidden_state_encoder = hidden_state_encoder[:, 1:, :]
+        
+        hidden_state_decoder_policy = self.decoder_embeddings_policy(start_move_indexes, end_move_indexes)
+        
+        hidden_state_decoder_value = self.decoder_embeddings_value(start_move_indexes, end_move_indexes)
         
         for policy_decoder_layer in self.policy_decoder:
             
