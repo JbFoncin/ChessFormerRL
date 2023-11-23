@@ -44,9 +44,9 @@ PlayerOutputA2C = namedtuple('PlayerOutputA2C',
                              field_names=['action',
                                           'action_index',
                                           'inference_data',
-                                          'estimated_action_value',
+                                          'estimated_action_value', #The value here is the advantage
                                           'policy_score',
-                                          'state_value'],
+                                          'estimated_state_value'],
                              defaults=[None,
                                        None,
                                        None,
@@ -167,6 +167,7 @@ class DQNModelPlayer(PlayerABC):
 
         return output
 
+
     @t.no_grad()
     def choose_random_action(self, board):
         """
@@ -198,7 +199,7 @@ class PolicyGradientModelPlayer(PlayerABC):
     """
     player using a model as policy, works with DQN or reinforce
     """
-    def __init__(self, model, random_action_rate, model_device):
+    def __init__(self, model, model_device):
         """
         Args:
             color (str): 'b' for black or 'w' for white
@@ -304,6 +305,53 @@ class QRDQNModelPlayer(DQNModelPlayer):
         output = PlayerOutputDQN(action=action,
                                  action_index=chosen_action_index,
                                  estimated_action_value=value,
+                                 inference_data=inference_data)
+
+        return output
+    
+    
+class A2CModelPlayer(PlayerABC):
+    """
+    player using a model as policy, works with DQN or reinforce
+    """
+    def __init__(self, model, model_device):
+        """
+        Args:
+            color (str): 'b' for black or 'w' for white
+            model (nn.Module): the policy
+        """
+        super().__init__()
+
+        self.model = model
+        self.model_device = model_device
+
+    @t.no_grad()
+    def choose_action(self, board):
+        """
+        Args:
+            board (chess.board): the current game object
+        Returns:
+            str: initital and final positions as str (like 'e2e4')
+            int: action index
+            inference data: dict of tensor to be stored in the replay buffer
+        """
+        possible_actions = self.get_possible_actions(board)
+
+        inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
+
+        self.model.eval()
+        state_value, policy_scores, action_values = self.model(**inference_data) #The action values are the advantage from each action
+        self.model.train()
+
+        policy_scores = policy_scores.squeeze(1)
+
+        policy_score, chosen_action_index = policy_scores.cpu().topk(1)
+
+        output = PlayerOutputA2C(action=possible_actions[chosen_action_index.item()],
+                                 action_index=chosen_action_index.item(),
+                                 policy_score=policy_score.item(),
+                                 estimated_action_value=action_values,
+                                 estimated_state_value=state_value,
                                  inference_data=inference_data)
 
         return output
