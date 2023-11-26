@@ -15,9 +15,9 @@ class PolicyGradientChunkedBatchGenerator:
             max_batch_size (int): maximum size of each chunk for gradient accumulation
             device (str, optional): the device where tensor will be created. Defaults to 'cpu'.
         """
-        chunked_batch_data, self.nb_chunks = self.prepare_input_for_policy_gradient_batch(episode_data,
-                                                                                          max_batch_size,
-                                                                                          device)
+        chunked_batch_data, self.batch_size = self.prepare_input_for_policy_gradient_batch(episode_data,
+                                                                                           max_batch_size,
+                                                                                           device)
         
         self.chunked_batch_data_inputs, self.chunked_batch_data_targets = chunked_batch_data
         
@@ -27,7 +27,7 @@ class PolicyGradientChunkedBatchGenerator:
     def __len__(self):
         """used to get loss normalization factor for gradient accumulation
         """
-        return self.nb_chunks
+        return self.batch_size
         
     
     def __iter__(self):
@@ -78,6 +78,8 @@ class PolicyGradientChunkedBatchGenerator:
         
         targets_idx = t.tensor([ep_data['action_index'] for ep_data in episode_data], device=device)
         
+        batch_size = targets_idx.size(0)
+        
         chunked_batch_data_inputs = {'pieces_ids': pieces_ids.chunk(nb_chunks),
                                      'colors_ids': colors_ids.chunk(nb_chunks),
                                      'start_move_indexes': starting_points_padded.chunk(nb_chunks),
@@ -87,4 +89,4 @@ class PolicyGradientChunkedBatchGenerator:
         chunked_batch_data_targets =  {'rolling_rewards': rolling_reward.chunk(nb_chunks),
                                        'action_index': targets_idx.chunk(nb_chunks)}
         
-        return (chunked_batch_data_inputs, chunked_batch_data_targets), nb_chunks
+        return (chunked_batch_data_inputs, chunked_batch_data_targets), batch_size

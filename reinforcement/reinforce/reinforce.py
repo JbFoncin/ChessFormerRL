@@ -174,6 +174,8 @@ class ReinforceTrainer:
         
         self.model.train()
         
+        batch_size = len(batch_iterator)
+        
         loss = 0
         
         for chunk in batch_iterator:
@@ -185,10 +187,8 @@ class ReinforceTrainer:
             
             model_score, _ = model_output.max(axis=1)
             
-            loss -= (t.log(model_score) * targets['rolling_rewards']).mean()
-            
-            loss /= len(batch_iterator)
-            
+            loss -= (t.log(model_score) * targets['rolling_rewards']).sum() / batch_size
+
             loss.backward()
             
         self.optimizer.step()
