@@ -1,8 +1,7 @@
 from torch import nn
 
 from .layers import (ActionDecoderLayer, BoardEncoderLayer,
-                     ChessFormerDecoderEmbedding, ChessFormerEncoderEmbedding,
-                     ChessFormerEncoderEmbeddingAdvantage)
+                     ChessFormerDecoderEmbedding, ChessFormerEncoderEmbedding)
 
 
 class ChessFormerDQN(nn.Module):
