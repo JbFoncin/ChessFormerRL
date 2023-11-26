@@ -39,7 +39,6 @@ class ReinforceTrainer:
         
         self.competitor = competitor
         self.agent = PolicyGradientModelPlayer(model=model,
-                                               random_action_rate=0.0,
                                                model_device=model_device)
         
         self.current_episode_data = []
