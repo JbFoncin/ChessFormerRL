@@ -44,11 +44,9 @@ PlayerOutputA2C = namedtuple('PlayerOutputA2C',
                              field_names=['action',
                                           'action_index',
                                           'inference_data',
-                                          'estimated_action_value', #The value here is the advantage
                                           'policy_score',
                                           'estimated_state_value'],
                              defaults=[None,
-                                       None,
                                        None,
                                        None,
                                        None,
@@ -340,7 +338,9 @@ class A2CModelPlayer(PlayerABC):
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 
         self.model.eval()
-        state_value, policy_scores, action_values = self.model(**inference_data) #The action values are the advantage from each action
+        
+        state_value, policy_scores = self.model(**inference_data) #The action values are the advantage from each action
+        
         self.model.train()
 
         policy_scores = policy_scores.squeeze(1)
@@ -350,7 +350,6 @@ class A2CModelPlayer(PlayerABC):
         output = PlayerOutputA2C(action=possible_actions[chosen_action_index.item()],
                                  action_index=chosen_action_index.item(),
                                  policy_score=policy_score.item(),
-                                 estimated_action_value=action_values,
                                  estimated_state_value=state_value,
                                  inference_data=inference_data)
 
