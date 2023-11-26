@@ -6,15 +6,10 @@ COORD_MAP = {key: value for key, value in zip('abcdefgh', [0, 1, 2, 3, 4, 5, 6, 
 REVERSED_COORD_MAP = {value: key for key, value in COORD_MAP.items()}
 PIECES_MAP = {value: i for i, value in enumerate(['b', 'k', 'n', 'p', 'q', 'r', '.'])}
 PADDING_LM_ID = 64 # legal move padding value
-ADVANTAGE_TOKEN_ID_POSITION = 64
-ADVANTAGE_TOKEN_ID_PIECE = 7
-ADVANTAGE_TOKEN_ID_COLOR = 3
 
 BOARD_INDEXES = []
 for i in range(7, -1, -1):
     BOARD_INDEXES.extend((range(i * 8, (i + 1) * 8)))
-
-BOARD_INDEXES_ADVANTAGE = [ADVANTAGE_TOKEN_ID_POSITION] + BOARD_INDEXES
 
 
 def get_piece(coord, board):

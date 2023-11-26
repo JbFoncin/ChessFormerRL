@@ -1,7 +1,7 @@
 import torch as t
 from torch import nn
 
-from chesstools.tools import BOARD_INDEXES, BOARD_INDEXES_ADVANTAGE
+from chesstools.tools import BOARD_INDEXES
 
 from .sublayers import BottleNeck, ResidualMultiHeadAttention
 
@@ -33,6 +33,44 @@ class ChessFormerEncoderEmbedding(nn.Module):
         """
         return self.position_emb(self.indexes) + self.piece_emb(pieces_ids) + self.color_emb(color_ids)
 
+
+class ChessFormerEncoderEmbeddingAdvantage(nn.Module):
+    """
+    Embedding layer for positional, color and piece encoding.
+    The input has a length of 65 instead of 64 because the first token
+    is an estimation of the state value.
+    """
+    def __init__(self, embedding_dim):
+        """
+        Args:
+            embedding_dim (int): size of the embeddings
+        """
+
+        super().__init__()
+
+        self.position_emb = nn.Embedding(64, embedding_dim=embedding_dim)
+        self.piece_emb = nn.Embedding(7, embedding_dim=embedding_dim)
+        self.color_emb = nn.Embedding(3, embedding_dim=embedding_dim)
+        advantage_init_value = t.normal(t.zeros(embedding_dim), t.ones(embedding_dim)/10)
+        advantage_init_value = advantage_init_value.unsqueeze(0).unsqueeze(0)
+        self.advantage_embedding = nn.Parameter(advantage_init_value)
+
+    def forward(self, pieces_ids, color_ids):
+        """
+        Args:
+            pieces_ids (torch.tensor): id of each piece
+            color_ids (torch.tensor): color of each piece (0 for empty box, 1 for player piece, 2 for competitor piece)
+        Returns:
+            torch.tensor: tensor of dim (64 * embedding_dim)
+        """
+        board_embeddings = self.position_emb(self.indexes) + self.piece_emb(pieces_ids) + self.color_emb(color_ids)
+        
+        advantage_embedding = self.advantage_embedding.repeat(pieces_ids.size(0), 1, 1)
+        
+        all_embeddings = t.cat([advantage_embedding, board_embeddings], dim=1)
+        
+        return all_embeddings
+    
 
 class ChessFormerDecoderEmbedding(nn.Module):
     """
