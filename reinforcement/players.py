@@ -17,7 +17,7 @@ PlayerOutputDQN = namedtuple('PlayerOutputDQN',
                              field_names=['action',
                                           'action_index',
                                           'inference_data',
-                                          'estimated_action_value']
+                                          'estimated_action_value'],
                              defaults=[None,
                                        None,
                                        None,
