@@ -51,6 +51,7 @@ class ChessFormerEncoderEmbeddingAdvantage(nn.Module):
         self.position_emb = nn.Embedding(64, embedding_dim=embedding_dim)
         self.piece_emb = nn.Embedding(7, embedding_dim=embedding_dim)
         self.color_emb = nn.Embedding(3, embedding_dim=embedding_dim)
+        self.register_buffer('indexes', t.tensor(BOARD_INDEXES, dtype=t.long))
         advantage_init_value = t.normal(t.zeros(embedding_dim), t.ones(embedding_dim)/10)
         advantage_init_value = advantage_init_value.unsqueeze(0).unsqueeze(0)
         self.advantage_embedding = nn.Parameter(advantage_init_value)

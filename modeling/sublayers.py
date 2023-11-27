@@ -81,7 +81,7 @@ class BottleNeck(nn.Module):
     def forward(self, input_):
         """
         Args:
-            input_ (torch.tensor): hidden state of the model, size (seq_len, emb_dim)
+            input_ (torch.tensor): hidden state of the model, size (batch, seq_len, emb_dim)
 
         Returns:
             torch.tensor: input processed

@@ -3,13 +3,15 @@ from copy import deepcopy
 
 import numpy as np
 import torch as t
+
+from torch import nn
 from chess import Board
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from modeling.tools.policy_gradient import ActorCriticChunkedBatchGenerator #This object doesn't exist yet
+from modeling.tools.policy_gradient import PolicyGradientChunkedBatchGenerator
 from modeling.tools.shared import move_data_to_device 
-from reinforcement.players import ModelPlayer
+from reinforcement.players import A2CModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
 
@@ -35,7 +37,9 @@ class A2CTrainer:
         self.max_batch_size = max_batch_size
         
         self.competitor = competitor
-        self.agent = ModelPlayer(model=model, random_action_rate=0.0, model_device=model_device)
+        self.agent = A2CModelPlayer(model=model, model_device=model_device)
+        
+        self.value_loss_criterion = nn.MSELoss(reduction='sum')
         
         self.current_episode_data = []
         
@@ -162,16 +166,76 @@ class A2CTrainer:
         return reward, board, True
     
     
-    def create_state_targets(self):
-        """creates targets for state values
+    def train_episode(self):
+        """updates weights of the Actor-Critic model
         """
-        for step, next_step in zip(self.current_episode_data[:-1],
-                                   self.current_episode_data[1:]):
+        self.optimizer.zero_grad()
+        
+        batch_iterator = PolicyGradientChunkedBatchGenerator(self.current_episode_data,
+                                                             self.max_batch_size,
+                                                             device=self.model_device)
+        
+        batch_size = len(batch_iterator)
+        
+        self.model.train()
+        
+        total_loss = 0
+        
+        for chunk in batch_iterator:
             
-            step['state_value_target'] = step['reward'] + next_step['estimated_state_value']
+            model_inputs = chunk['model_inputs']
+            targets = chunk['targets']
+            
+            state_values, policy_scores = self.model(**model_inputs)
+            
+            policy_best_scores, _ = policy_scores.max(axis=1)
+            
+            advantage = targets['rolling_rewards'] - state_values.detach()
+            
+            policy_loss = -(t.log(policy_best_scores) * advantage).sum()
+            
+            value_loss = self.value_loss_criterion(state_values, targets['rolling_rewards']) 
+            
+            total_loss += (policy_loss + value_loss) / batch_size
+            
+            total_loss.backward()
+            
+        self.optimizer.step()
         
-        #computing target for final step
-        self.current_episode_data[-1]['state_value_target'] = self.current_episode_data[-1]['reward']
+        self.current_episode_data = []
         
+        return total_loss.item()
+    
+    
+    def train(self, num_games):
+        """
+        The training loop.
+        
+        Args:
+            num_games (int): how much games the model will be trained on
+        """
+        step = 0
+
+        for epoch in tqdm(range(num_games)):
+
+            game_reward = 0
+
+            board = self.init_game()
+
+            game_continues = True
+
+            while game_continues:
+
+                step += 1
+
+                reward, board, game_continues = self.generate_sample(board)
+
+                game_reward += reward
+                
+            loss = self.train_episode()
+            
+            self.summary_writer.add_scalar('A2C loss', loss, epoch)
+
+            self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)    
     
     

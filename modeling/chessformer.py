@@ -120,7 +120,7 @@ class ChessFormerPolicyGradient(ChessFormerDQN):
         return output_softmax    
     
     
-class ChessFormerA2C:
+class ChessFormerA2C(nn.Module):
     """
     Advantage actor critic. 
     Uses two decoders, one for policy and other for action value.
@@ -155,13 +155,15 @@ class ChessFormerA2C:
         
         self.decoder_embeddings_policy = ChessFormerDecoderEmbedding(embedding_dim)
         
-        self.policy_decoder = [ActionDecoderLayer(embedding_dim,
-                                                  nb_head,
-                                                  dim_per_head,
-                                                  bottleneck_hidden_dim)
-                               for _ in range(nb_decoder_layers_policy)]
+        policy_decoder = [ActionDecoderLayer(embedding_dim,
+                                             nb_head,
+                                             dim_per_head,
+                                             bottleneck_hidden_dim)
+                          for _ in range(nb_decoder_layers_policy)]
         
-        self.policy_linear(embedding_dim, 1)
+        self.policy_decoder = nn.ModuleList(policy_decoder)
+        
+        self.policy_linear = nn.Linear(embedding_dim, 1)
         
         self.policy_softmax = nn.Softmax(dim=-1)
         
@@ -191,6 +193,8 @@ class ChessFormerA2C:
         
         state_value = self.state_value_linear(state_representation)
         
+        state_value = state_value.squeeze(1)
+        
         if state_value_only:
             return state_value
         
@@ -208,6 +212,6 @@ class ChessFormerA2C:
         if target_mask is not None:
             policy_values.squeeze(2).masked_fill_(target_mask, float('-inf'))
             
-        policy_scores = self.policy_softmax(policy_values)
+        policy_scores = self.policy_softmax(policy_values.squeeze(2))
         
         return state_value, policy_scores
