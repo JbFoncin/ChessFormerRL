@@ -15,9 +15,9 @@ class PolicyGradientChunkedBatchGenerator:
             max_batch_size (int): maximum size of each chunk for gradient accumulation
             device (str, optional): the device where tensor will be created. Defaults to 'cpu'.
         """
-        chunked_batch_data, self.batch_size = self.prepare_input_for_policy_gradient_batch(episode_data,
-                                                                                           max_batch_size,
-                                                                                           device)
+        chunked_batch_data, self.batch_size = self.prepare_input_for_batch(episode_data,
+                                                                           max_batch_size,
+                                                                           device)
         
         self.chunked_batch_data_inputs, self.chunked_batch_data_targets = chunked_batch_data
         
@@ -52,7 +52,7 @@ class PolicyGradientChunkedBatchGenerator:
                 
                 
     @staticmethod
-    def prepare_input_for_policy_gradient_batch(episode_data, max_batch_size, device='cpu'):
+    def prepare_input_for_batch(episode_data, max_batch_size, device='cpu'):
         """
         creates training data for policy gradient model
 
