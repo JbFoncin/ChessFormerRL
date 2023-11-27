@@ -21,7 +21,7 @@ class ReinforceTrainer:
     Basic reinforce algorithm trainer
     """
     def __init__(self, model, optimizer, competitor, max_batch_size,
-                 experiment_name, model_device):
+                 experiment_name, model_device, history_len):
         """
         Args:
             model (t.nn.Module): the model to be trained
@@ -41,7 +41,10 @@ class ReinforceTrainer:
         self.agent = PolicyGradientModelPlayer(model=model,
                                                model_device=model_device)
         
+        self.history_len = history_len
+        
         self.current_episode_data = []
+        self.finished_episodes_data = []
         
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
         
@@ -94,6 +97,13 @@ class ReinforceTrainer:
                                           'reward': current_reward,
                                           'action_index': current_action_index,
                                           'policy_score': policy_score})
+        
+
+    def add_current_episode_to_history(self):
+        """clean current episode data and add it to history
+        """
+        self.finished_episodes_data.extend(self.current_episode_data)
+        self.current_episode_data = []
  
 
     def generate_sample(self, board):
@@ -161,13 +171,13 @@ class ReinforceTrainer:
         return reward, board, True
     
     
-    def train_episode(self):
+    def train_on_history(self):
         """
         updates weights of the policy gradient model
         """
         self.optimizer.zero_grad()
         
-        batch_iterator = PolicyGradientChunkedBatchGenerator(self.current_episode_data,
+        batch_iterator = PolicyGradientChunkedBatchGenerator(self.self.finished_episodes_data,
                                                              self.max_batch_size,
                                                              device=self.model_device)
         
@@ -192,7 +202,7 @@ class ReinforceTrainer:
             
         self.optimizer.step()
         
-        self.current_episode_data = [] # set episode data to empty
+        self.finished_episodes_data = [] # set training data to empty
         
         return loss.item()
     
@@ -222,8 +232,14 @@ class ReinforceTrainer:
 
                 game_reward += reward
                 
+            self.add_current_episode_to_history()
+            
             loss = self.train_episode()
             
-            self.summary_writer.add_scalar('Weighted policy scores', loss, epoch)
-
             self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)
+            
+            if epoch and not epoch % self.history_len:
+                
+                loss = self.train_on_history()
+                
+                self.summary_writer.add_scalar('Weighted policy scores', loss, epoch)

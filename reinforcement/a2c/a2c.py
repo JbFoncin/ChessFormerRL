@@ -20,7 +20,7 @@ class A2CTrainer:
     Trainer for Advantage Actor Critic
     """
     def __init__(self, model, optimizer, competitor, max_batch_size,
-                 experiment_name, model_device):
+                 experiment_name, model_device, history_len):
         """
         Args:
             model (t.nn.Module): the model to be trained
@@ -41,7 +41,10 @@ class A2CTrainer:
         
         self.value_loss_criterion = nn.MSELoss(reduction='sum')
         
+        self.history_len = history_len
+        
         self.current_episode_data = []
+        self.finished_episodes_data = []
         
         self.summary_writer = SummaryWriter(f'runs/{experiment_name}')
         
@@ -97,6 +100,13 @@ class A2CTrainer:
                                           'action_policy_score': action_policy_score,
                                           'estimated_state_value': estimated_state_value})
         
+    
+    def add_current_episode_to_history(self):
+        """clean current episode data and add it to history
+        """
+        self.finished_episodes_data.extend(self.current_episode_data)
+        self.current_episode_data = []
+
 
     def generate_sample(self, board):
         """
@@ -166,12 +176,12 @@ class A2CTrainer:
         return reward, board, True
     
     
-    def train_episode(self):
+    def train_on_history(self):
         """updates weights of the Actor-Critic model
         """
         self.optimizer.zero_grad()
         
-        batch_iterator = PolicyGradientChunkedBatchGenerator(self.current_episode_data,
+        batch_iterator = PolicyGradientChunkedBatchGenerator(self.finished_episodes_data,
                                                              self.max_batch_size,
                                                              device=self.model_device)
         
@@ -202,7 +212,7 @@ class A2CTrainer:
             
         self.optimizer.step()
         
-        self.current_episode_data = []
+        self.finished_episodes_data = []
         
         return total_loss.item()
     
@@ -232,10 +242,15 @@ class A2CTrainer:
 
                 game_reward += reward
                 
-            loss = self.train_episode()
+            self.add_current_episode_to_history()
+                
+            self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)   
             
-            self.summary_writer.add_scalar('A2C loss', loss, epoch)
+            if epoch and not epoch % self.history_len:
+            
+                loss = self.train_on_history()
+                
+                self.summary_writer.add_scalar('A2C loss', loss, epoch)
 
-            self.summary_writer.add_scalar('Total game rewards', game_reward, epoch)    
     
     
