@@ -9,7 +9,7 @@ from chess import Board
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from modeling.tools.policy_gradient import PolicyGradientChunkedBatchGenerator
+from modeling.tools.a2c import A2CChunkedBatchGenerator
 from modeling.tools.shared import move_data_to_device 
 from reinforcement.players import A2CModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
@@ -91,14 +91,22 @@ class A2CTrainer:
         """
         move_data_to_device(model_inputs, 'cpu')
 
-        for element in self.current_episode_data:
-            element['reward'] += current_reward
-
         self.current_episode_data.append({**model_inputs,
                                           'reward': current_reward,
                                           'action_index': current_action_index,
                                           'action_policy_score': action_policy_score,
                                           'estimated_state_value': estimated_state_value})
+        
+    def compute_td_target(self):
+        """
+        computes target for state value
+        """
+        for step, next_step in zip(self.current_episode_data[:-1],
+                                   self.current_episode_data[1:]):
+            
+            step['state_value_target'] = step['reward'] + next_step['estimated_state_value']
+            
+        self.current_episode_data[-1]['state_value_target'] = self.current_episode_data[-1]['reward']
         
     
     def add_current_episode_to_history(self):
@@ -181,9 +189,9 @@ class A2CTrainer:
         """
         self.optimizer.zero_grad()
         
-        batch_iterator = PolicyGradientChunkedBatchGenerator(self.finished_episodes_data,
-                                                             self.max_batch_size,
-                                                             device=self.model_device)
+        batch_iterator = A2CChunkedBatchGenerator(self.finished_episodes_data,
+                                                  self.max_batch_size,
+                                                  device=self.model_device)
         
         batch_size = len(batch_iterator)
         
@@ -200,11 +208,11 @@ class A2CTrainer:
             
             policy_best_scores, _ = policy_scores.max(axis=1)
             
-            advantage = targets['rolling_rewards'] - state_values.detach()
+            advantage = targets['state_value_target'] - state_values.detach()
             
             policy_loss = -(t.log(policy_best_scores) * advantage).sum()
             
-            value_loss = self.value_loss_criterion(state_values, targets['rolling_rewards']) 
+            value_loss = self.value_loss_criterion(state_values, targets['state_value_target']) 
             
             total_loss += (policy_loss + value_loss) / batch_size
             
@@ -241,6 +249,8 @@ class A2CTrainer:
                 reward, board, game_continues = self.generate_sample(board)
 
                 game_reward += reward
+                
+            self.compute_td_target()
                 
             self.add_current_episode_to_history()
                 
