@@ -224,7 +224,7 @@ class A2CTrainer:
         
         self.finished_episodes_data = []
         
-        return total_loss.item()
+        return total_loss
     
     
     def train(self, num_games):

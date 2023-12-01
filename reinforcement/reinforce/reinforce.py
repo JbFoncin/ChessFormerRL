@@ -206,7 +206,7 @@ class ReinforceTrainer:
         
         self.finished_episodes_data = [] # set training data to empty
         
-        return loss.item()
+        return loss
     
 
     def train(self, num_games):
