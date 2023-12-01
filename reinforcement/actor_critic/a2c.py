@@ -214,9 +214,11 @@ class A2CTrainer:
             
             value_loss = self.value_loss_criterion(state_values, targets['state_value_target']) 
             
-            total_loss += (policy_loss + value_loss) / batch_size
+            chunk_loss = (policy_loss + value_loss) / batch_size
             
-            total_loss.backward()
+            chunk_loss.backward()
+            
+            total_loss += chunk_loss.detach().item()
             
         self.optimizer.step()
         

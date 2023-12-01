@@ -196,9 +196,11 @@ class ReinforceTrainer:
             
             model_score, _ = model_output.max(axis=1)
             
-            loss -= (t.log(model_score) * targets['rolling_rewards']).sum() / batch_size
-
-            loss.backward()
+            chunk_loss = (t.log(model_score) * targets['rolling_rewards']).sum() / batch_size
+            
+            chunk_loss.backward()
+            
+            loss -= chunk_loss.detach().item()
             
         self.optimizer.step()
         
