@@ -1,8 +1,8 @@
 """
 First attempt with a policy based strategy
 """
-from random import shuffle
 from copy import deepcopy
+from random import shuffle
 
 import numpy as np
 import torch as t
@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from modeling.tools.policy_gradient import PolicyGradientChunkedBatchGenerator
-from modeling.tools.shared import move_data_to_device 
+from modeling.tools.shared import move_data_to_device
 from reinforcement.players import PolicyGradientModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 

@@ -4,9 +4,10 @@ from random import shuffle
 
 from chess import Board
 
-from reinforcement.reward import get_endgame_reward, get_move_reward
-from reinforcement.players import A2CModelPlayer
 from modeling.tools.shared import move_data_to_device
+from reinforcement.players import A2CModelPlayer
+from reinforcement.reward import get_endgame_reward, get_move_reward
+
 
 class HistoryRegisterer:
     
@@ -132,7 +133,8 @@ class HistoryRegisterer:
         
     
 def gather_data(model, competitor, model_device):
-    """generates training data by exploring environment
+    """
+    generates training data by exploring environment
 
     Args:
         model (torch.nn.Module): the Actor Critic neural network
