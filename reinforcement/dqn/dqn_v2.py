@@ -45,7 +45,6 @@ class DQNTrainerV2:
         """
         self.model, self.target_network = model_1,  model_2
         self.target_network.requires_grad_(False)
-        self.target_network.eval()
         self.optimizer = optimizer
         self.model_device = model_device
         self.batch_size = batch_size

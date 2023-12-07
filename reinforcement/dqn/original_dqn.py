@@ -87,7 +87,6 @@ class DQNTrainer:
             model (torch.nn.Module): a q model
         """
         self.frozen_model = deepcopy(model)
-        self.frozen_model.eval()
         self.frozen_model.requires_grad_(False)
 
     def init_game(self):

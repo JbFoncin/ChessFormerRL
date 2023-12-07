@@ -132,7 +132,7 @@ class HistoryRegisterer:
         
         
     
-def gather_data(model, competitor, model_device):
+def gather_data(model, competitor, model_device, output_queue, board_fen=None):
     """
     generates training data by exploring environment
 
@@ -140,6 +140,7 @@ def gather_data(model, competitor, model_device):
         model (torch.nn.Module): the Actor Critic neural network
         competitor (renforcement.player): the opponent
         model_device (str): 'cuda' or 'cpu', the device where is the model
+        board_fen (str or None): string of encoded board as string
         
     Returns:
         list[dict]: one dict for each action in the game
@@ -154,7 +155,13 @@ def gather_data(model, competitor, model_device):
     agent.set_color(color_agent)
     competitor.set_color(color_competitor)
     
-    board = Board()
+    if board_fen:
+    
+        board = Board(board_fen)
+        
+    else:
+        
+        board = Board()
 
     if competitor.color: #if competitor plays first
 
@@ -175,5 +182,5 @@ def gather_data(model, competitor, model_device):
         
     episode_registerer.compute_state_value_target()
                                 
-    return {'episode_data': episode_registerer.episode_data,
-            'episode_reward': episode_reward}
+    output_queue.put({'episode_data': episode_registerer.episode_data,
+                      'episode_reward': episode_reward})
