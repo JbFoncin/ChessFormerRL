@@ -146,9 +146,7 @@ class DQNModelPlayer(PlayerABC):
 
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 
-        self.model.eval()
         actions_scores = self.model(**inference_data)
-        self.model.train()
 
         actions_scores = actions_scores.squeeze(1)
 
@@ -177,9 +175,7 @@ class DQNModelPlayer(PlayerABC):
 
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 
-        self.model.eval()
         actions_scores = self.model(**inference_data)
-        self.model.train()
 
         output = PlayerOutputDQN(action=action,
                                  action_index=chosen_action_index,
@@ -218,9 +214,7 @@ class PolicyGradientModelPlayer(PlayerABC):
 
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 
-        self.model.eval()
         policy_scores = self.model(**inference_data)
-        self.model.train()
 
         policy_scores = policy_scores.squeeze(1)
 
@@ -259,9 +253,7 @@ class QRDQNModelPlayer(DQNModelPlayer):
 
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 
-        self.model.eval()
         actions_scores = self.model(**inference_data)
-        self.model.train()
 
         _, index = actions_scores.mean(2).max(1)
 
@@ -291,9 +283,7 @@ class QRDQNModelPlayer(DQNModelPlayer):
 
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 
-        self.model.eval()
         actions_scores = self.model(**inference_data)
-        self.model.train()
         value = actions_scores[0, chosen_action_index, :].unsqueeze(0).cpu()
         #The action value is now the estimated quantiles of the Q function
         output = PlayerOutputDQN(action=action,
@@ -333,11 +323,7 @@ class A2CModelPlayer(PlayerABC):
 
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 
-        self.model.eval()
-        
         state_value, policy_scores = self.model(**inference_data) #The action values are the advantage from each action
-        
-        self.model.train()
 
         policy_scores = policy_scores.squeeze(1)
 
