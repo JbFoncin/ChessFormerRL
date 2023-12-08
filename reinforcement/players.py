@@ -73,7 +73,7 @@ class PlayerABC(ABC):
         
         for action in all_possible_actions:
             
-            if action[-1].isnalnum() or action[-1] == 'q':
+            if action[-1].isdigit() or action[-1] == 'q':
                 filtered_actions.append(action)            
         
         return filtered_actions
