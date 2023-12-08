@@ -66,7 +66,17 @@ class PlayerABC(ABC):
         Returns:
             list[str]: list of possible actions, like 'e2e4'
         """
-        return [str(move) for move in board.legal_moves]
+        
+        all_possible_actions = [str(move) for move in board.legal_moves]
+        
+        filtered_actions = []
+        
+        for action in all_possible_actions:
+            
+            if action[-1].isnalnum() or action[-1] == 'q':
+                filtered_actions.append(action)            
+        
+        return filtered_actions
 
     def set_color(self, color):
         """
