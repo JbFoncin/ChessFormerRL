@@ -1,16 +1,15 @@
-from random import shuffle
 from copy import deepcopy
+from random import shuffle
 
 import numpy as np
 import torch as t
-
-from torch import nn
 from chess import Board
+from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from modeling.tools.a2c import A2CChunkedBatchGenerator
-from modeling.tools.shared import move_data_to_device 
+from modeling.tools.shared import move_data_to_device
 from reinforcement.players import A2CModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
