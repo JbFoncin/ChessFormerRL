@@ -3,7 +3,7 @@ from chesstools.tools import get_piece
 REWARDS = {'b': 3, 'n': 3, 'p':1, 'q': 10, 'r': 5, '.': 0}
 REWARD_CHECKMATE = 20
 REWARD_STALEMATE = 0
-REWARD_INSUFFICIENT = 20
+REWARD_INSUFFICIENT = 0
 REWARD_SEVENTYFIVE = 0
 REWARD_FIVEFOLD = 0
 MAX_REWARD = 20
