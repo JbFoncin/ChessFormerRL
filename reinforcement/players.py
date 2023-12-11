@@ -6,6 +6,7 @@ import torch as t
 from chess import BLACK, WHITE
 
 from modeling.tools.shared import prepare_for_model_inference
+from chesstools.tools import get_possible_actions
 
 WHITE_COLOR_MAPPING = {None: 0, 'w': 1, 'b': 2}
 BLACK_COLOR_MAPPING = {None: 0, 'b': 1, 'w': 2}
@@ -57,26 +58,6 @@ class PlayerABC(ABC):
         self.color_map = None
         self.color = None
 
-    @staticmethod
-    def get_possible_actions(board):
-        """
-        Args:
-            board (chess.Board): the current game state
-
-        Returns:
-            list[str]: list of possible actions, like 'e2e4'
-        """
-        
-        all_possible_actions = [str(move) for move in board.legal_moves]
-        
-        filtered_actions = []
-        
-        for action in all_possible_actions:
-            
-            if action[-1].isdigit() or action[-1] == 'q':
-                filtered_actions.append(action)            
-        
-        return filtered_actions
 
     def set_color(self, color):
         """
@@ -115,7 +96,7 @@ class DummyPlayer(PlayerABC):
         Returns:
             PlayerOutput
         """
-        actions = self.get_possible_actions(board)
+        actions = get_possible_actions(board)
         action_index = int(random() * len(actions))
         output = PlayerOutputDQN(action=actions[action_index],
                                  action_index=action_index)
@@ -152,7 +133,7 @@ class DQNModelPlayer(PlayerABC):
 
             return self.choose_random_action(board)
 
-        possible_actions = self.get_possible_actions(board)
+        possible_actions = get_possible_actions(board)
 
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 
@@ -220,7 +201,7 @@ class PolicyGradientModelPlayer(PlayerABC):
             int: action index
             inference data: dict of tensor to be stored in the replay buffer
         """
-        possible_actions = self.get_possible_actions(board)
+        possible_actions = get_possible_actions(board)
 
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 
@@ -259,7 +240,7 @@ class QRDQNModelPlayer(DQNModelPlayer):
 
             return self.choose_random_action(board)
 
-        possible_actions = self.get_possible_actions(board)
+        possible_actions = get_possible_actions(board)
 
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 
@@ -329,7 +310,7 @@ class A2CModelPlayer(PlayerABC):
             int: action index
             inference data: dict of tensor to be stored in the replay buffer
         """
-        possible_actions = self.get_possible_actions(board)
+        possible_actions = get_possible_actions(board)
 
         inference_data = prepare_for_model_inference(board, self.color_map, self.model_device)
 

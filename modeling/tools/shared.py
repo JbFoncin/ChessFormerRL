@@ -1,6 +1,8 @@
 import torch as t
 
-from chesstools.tools import get_all_encoded_pieces_and_colors, get_index
+from chesstools.tools import (get_all_encoded_pieces_and_colors,
+                              get_index,
+                              get_possible_actions)
 
 
 def prepare_for_model_inference(board, color_map, device='cpu'):
@@ -17,7 +19,8 @@ def prepare_for_model_inference(board, color_map, device='cpu'):
 
     pieces = t.tensor(pieces).unsqueeze(0).to(device)
     colors = t.tensor(colors).unsqueeze(0).to(device)
-    possible_actions = [str(move) for move in board.legal_moves]
+    
+    possible_actions = get_possible_actions(board)
 
     starting_moves_indexes = [get_index(move[:2]) for move in possible_actions]
     starting_moves_indexes = t.tensor(starting_moves_indexes, device=device).unsqueeze(0)

@@ -69,3 +69,25 @@ def get_all_encoded_pieces_and_colors(board, color_map):
             colors.append(color_map['w'])
 
     return pieces, colors
+
+
+def get_possible_actions(board):
+    """
+    get all possible actions except pawn transformation forced to queen
+    
+    Args:
+        board (chess.Board): the current game state
+
+    Returns:
+        list[str]: list of possible actions, like 'e2e4'
+    """
+    
+    all_possible_actions = [str(move) for move in board.legal_moves]
+    
+    filtered_actions = []
+    
+    for action in all_possible_actions:
+        if action[-1].isdigit() or action[-1] == 'q':
+            filtered_actions.append(action)            
+    
+    return filtered_actions
