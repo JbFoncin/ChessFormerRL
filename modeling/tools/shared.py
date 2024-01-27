@@ -80,5 +80,5 @@ def compute_entropy(policy_softmax, target_mask):
     entropy_values = policy_softmax_filtered[target_mask_reversed_filtered]
     entropy = entropy_values * t.log(entropy_values) / t.log(entropy_scale)
     #We average it by batch size
-    return entropy.sum() / batch_size
+    return entropy.sum() / policy_softmax.size(0)
     
