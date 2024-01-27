@@ -36,7 +36,7 @@ class ChessFormerDQN(nn.Module):
         
         self.encoder = nn.ModuleList(encoder)
         
-        self.final_encoder_ln = nn.LayerNorm(embedding_dim)        
+        self.final_encoder_ln = nn.LayerNorm(embedding_dim)
         
         self.decoder_embeddings = ChessFormerDecoderEmbedding(embedding_dim)
         
