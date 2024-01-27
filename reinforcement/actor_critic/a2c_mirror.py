@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from modeling.tools.a2c import A2CChunkedBatchGenerator
-from modeling.tools.shared import move_data_to_device
+from modeling.tools.shared import move_data_to_device, compute_entropy
 from reinforcement.players import A2CModelPlayer
 from reinforcement.reward import get_endgame_reward, get_move_reward
 
@@ -21,7 +21,7 @@ class A2CMirrorTrainer:
     """
     Trainer for Advantage Actor Critic
     """
-    def __init__(self, model, optimizer, max_batch_size,
+    def __init__(self, model, optimizer, max_batch_size, entropy_bonus_factor,
                  experiment_name, model_device):
         """
         Args:
@@ -40,6 +40,8 @@ class A2CMirrorTrainer:
         
         self.competitor = A2CModelPlayer(model=model, model_device=model_device)
         self.agent = A2CModelPlayer(model=model, model_device=model_device)
+        
+        self.entropy_bonus_factor = entropy_bonus_factor
         
         self.competitor.set_color(False)
         self.agent.set_color(True)
@@ -205,7 +207,9 @@ class A2CMirrorTrainer:
         
         self.model.train()
         
-        total_loss = 0
+        entropy_bonus_acc = 0.0
+        policy_loss_acc = 0.0
+        value_loss_acc = 0.0
         
         for chunk in batch_iterator:
             
@@ -220,19 +224,25 @@ class A2CMirrorTrainer:
             
             policy_loss = -(t.log(policy_best_scores) * advantage).sum()
             
-            value_loss = self.value_loss_criterion(state_values, targets['state_value_target']) 
+            value_loss = self.value_loss_criterion(state_values, targets['state_value_target'])
             
-            chunk_loss = (policy_loss + value_loss) / batch_size
+            entropy_bonus = compute_entropy(policy_scores, model_inputs['target_mask'])
+            
+            entropy_bonus_acc += entropy_bonus.detach().item() / batch_size
+            policy_loss_acc += policy_loss.detach().item() / batch_size
+            value_loss_acc += value_loss.detach().item() / batch_size
+            
+            chunk_loss = (policy_loss + value_loss + entropy_bonus) / batch_size
             
             chunk_loss.backward()
-            
-            total_loss += chunk_loss.detach().item()
             
         self.optimizer.step()
         
         self.current_episode_data = {True: [], False: []}
         
-        return total_loss
+        return {'entropy bonus': entropy_bonus_acc, 
+                'policy loss': policy_loss_acc,
+                'value loss': value_loss_acc}
     
     
     def train(self, num_games):
@@ -258,6 +268,7 @@ class A2CMirrorTrainer:
                 
             self.compute_td_target()
             
-            loss = self.train_on_history()
+            loss_dict = self.train_on_history()
             
-            self.summary_writer.add_scalar('A2C loss', loss, epoch)
+            for key, value in loss_dict.items():
+                self.summary_writer.add_scalar(key, value, epoch)
