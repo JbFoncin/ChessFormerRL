@@ -40,7 +40,7 @@ def prepare_for_model_inference(board, color_map, device='cpu'):
 
 def move_data_to_device(data, device):
     """
-    Moves recursively data to device
+    Moves recursively data to device.
 
     Args:
         data (dict): a dict of dict or tensors
@@ -53,3 +53,32 @@ def move_data_to_device(data, device):
 
         if isinstance(data[key], dict):
             return move_data_to_device(data[key], device)
+        
+        
+def compute_entropy(policy_softmax, target_mask):
+    """
+    Computes entropy from policy decoder output.
+    Used to increase environment exploration.
+
+    Args:
+        policy_softmax (t.Tensor): tensor with size (batch, action_space), padded with 0
+        target_mask (t.Tensor): True if padding action space, False for scores to evaluate
+    """    
+    target_mask_reversed = ~ target_mask
+    
+    #we remove each element on batch axis with action space size equal to one as
+    #entropy has no meaning for a sequence of one element
+    action_space_size_mask = target_mask_reversed.sum(dim=1) > 1
+    policy_softmax_filtered = policy_softmax[action_space_size_mask, :]
+    #We also filter the mask to keep it aligned with softmax output
+    target_mask_reversed_filtered = target_mask_reversed[action_space_size_mask, :]
+    batch_size, action_space_size = target_mask_reversed_filtered.size()
+    #used to normalize the entropy scale as entropy increases with action space size
+    action_space_size = target_mask_reversed_filtered.sum(dim=1).view(batch_size, 1).repeat(1, action_space_size)
+    entropy_scale = action_space_size[target_mask_reversed_filtered]
+    #We finally compute entropy
+    entropy_values = policy_softmax_filtered[target_mask_reversed_filtered]
+    entropy = entropy_values * t.log(entropy_values) / t.log(entropy_scale)
+    #We average it by batch size
+    return entropy.sum() / batch_size
+    
