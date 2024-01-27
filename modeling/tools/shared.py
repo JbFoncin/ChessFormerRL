@@ -70,15 +70,18 @@ def compute_entropy(policy_softmax, target_mask):
     #entropy has no meaning for a sequence of one element
     action_space_size_mask = target_mask_reversed.sum(dim=1) > 1
     policy_softmax_filtered = policy_softmax[action_space_size_mask, :]
+    
     #We also filter the mask to keep it aligned with softmax output
     target_mask_reversed_filtered = target_mask_reversed[action_space_size_mask, :]
     batch_size, action_space_size = target_mask_reversed_filtered.size()
+    
     #used to normalize the entropy scale as entropy increases with action space size
     action_space_size = target_mask_reversed_filtered.sum(dim=1).view(batch_size, 1).repeat(1, action_space_size)
     entropy_scale = action_space_size[target_mask_reversed_filtered]
+    
     #We finally compute entropy
     entropy_values = policy_softmax_filtered[target_mask_reversed_filtered]
     entropy = entropy_values * t.log(entropy_values) / t.log(entropy_scale)
     #We average it by batch size
-    return entropy.sum() / policy_softmax.size(0)
+    return entropy.sum()
     
